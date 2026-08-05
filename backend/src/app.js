@@ -8,6 +8,10 @@ import rateLimit from 'express-rate-limit';
 import { env } from './config/env.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
+import authRoutes from './modules/auth/auth.routes.js';
+import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
+// import brandRoutes from './modules/brand/brand.routes.js';
+// import productRoutes from './modules/product/product.routes.js';
 
 export function createApp() {
   const app = express();
@@ -43,7 +47,11 @@ export function createApp() {
 
   // Auth (rate-limited) + authenticated API.
   const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false });
+  app.use('/api/auth', authLimiter, authRoutes);
 
+  app.use('/api/dashboard', dashboardRoutes);
+  // app.use('/api/brands', brandRoutes);
+  // app.use('/api/products', productRoutes);
 
   app.use(notFound);
   app.use(errorHandler);
