@@ -10,8 +10,8 @@ import { notFound, errorHandler } from './middleware/error.js';
 
 import authRoutes from './modules/auth/auth.routes.js';
 import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
-// import brandRoutes from './modules/brand/brand.routes.js';
-// import productRoutes from './modules/product/product.routes.js';
+import brandRoutes from './modules/brand/brand.routes.js';
+import productRoutes from './modules/product/product.routes.js';
 
 export function createApp() {
   const app = express();
