@@ -1,11 +1,8 @@
 import { NavLink } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { X, Sparkles } from 'lucide-react';
 import { NAV_GROUPS } from './navConfig';
 import { useUI } from '../../store/ui';
 import { useAuth } from '../../store/auth';
-import { useActiveBrand } from '../../hooks/useBrands';
-import { get } from '../../lib/api';
 import { cn } from '../../lib/utils';
 
 function Brandmark() {
@@ -24,14 +21,6 @@ function Brandmark() {
 
 function SidebarContent({ onNavigate }) {
   const { user } = useAuth();
-  const { activeBrandId } = useActiveBrand();
-
-  const { data: pending } = useQuery({
-    queryKey: ['pending-approvals', activeBrandId],
-    queryFn: () => get(`/posts?status=PENDING_REVIEW${activeBrandId ? `&brandId=${activeBrandId}` : ''}`),
-    enabled: Boolean(activeBrandId),
-  });
-  const badges = { pending: pending?.length || 0 };
 
   return (
     <div className="flex h-full flex-col">
@@ -50,7 +39,6 @@ function SidebarContent({ onNavigate }) {
               <div className="space-y-0.5">
                 {items.map((item) => {
                   const Icon = item.icon;
-                  const badge = item.badge ? badges[item.badge] : 0;
                   return (
                     <NavLink
                       key={item.to}
@@ -69,16 +57,6 @@ function SidebarContent({ onNavigate }) {
                         <>
                           <Icon className={cn('h-[18px] w-[18px] shrink-0', !isActive && 'group-hover:text-brand-500')} />
                           <span className="flex-1 truncate">{item.label}</span>
-                          {badge > 0 && (
-                            <span
-                              className={cn(
-                                'rounded-full px-1.5 py-0.5 text-[10px] font-bold',
-                                isActive ? 'bg-white/25 text-white' : 'bg-amber-500 text-white'
-                              )}
-                            >
-                              {badge}
-                            </span>
-                          )}
                         </>
                       )}
                     </NavLink>

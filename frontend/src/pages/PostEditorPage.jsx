@@ -75,6 +75,9 @@ export default function PostEditorPage() {
 
   const saveMut = useMutation({
     mutationFn: async () => {
+      if (isNew && !activeBrandId) {
+        throw new Error('Select or create a brand before saving a post');
+      }
       if (isNew) return post('/posts', { ...buildBody(), brandId: activeBrandId });
       return patch(`/posts/${id}`, buildBody());
     },

@@ -8,6 +8,11 @@ import rateLimit from 'express-rate-limit';
 import { env } from './config/env.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
+import authRoutes from './modules/auth/auth.routes.js';
+import brandRoutes from './modules/brand/brand.routes.js';
+import postRoutes from './modules/post/post.routes.js';
+import campaignRoutes from './modules/campaign/campaign.routes.js';
+import mediaRoutes from './modules/media/media.routes.js';
 
 export function createApp() {
   const app = express();
@@ -25,7 +30,6 @@ export function createApp() {
   app.use(cookieParser());
   if (!env.isProd) app.use(morgan('dev'));
 
-
   app.get('/api/health', (_req, res) =>
     res.json({
       success: true,
@@ -40,10 +44,14 @@ export function createApp() {
     })
   );
 
-
   // Auth (rate-limited) + authenticated API.
   const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false });
+  app.use('/api/auth', authLimiter, authRoutes);
 
+  app.use('/api/brands', brandRoutes);
+  app.use('/api/posts', postRoutes);
+  app.use('/api/campaigns', campaignRoutes);
+  app.use('/api/media', mediaRoutes);
 
   app.use(notFound);
   app.use(errorHandler);
