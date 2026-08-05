@@ -17,12 +17,7 @@ export function createApp() {
   const app = express();
   app.set('trust proxy', 1);
 
-  app.use('/api/auth', authLimiter, authRoutes);   // ✅ your routes go here
-  app.use('/api/brands', requireAuth, brandRoutes);
-
-  app.use(notFound);      // ⬅️ keep these last, always
-  app.use(errorHandler);
-
+  // --- Core middleware (must come first) ---
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(
     cors({
@@ -35,7 +30,7 @@ export function createApp() {
   app.use(cookieParser());
   if (!env.isProd) app.use(morgan('dev'));
 
-
+  // --- Health check ---
   app.get('/api/health', (_req, res) =>
     res.json({
       success: true,
@@ -50,17 +45,23 @@ export function createApp() {
     })
   );
 
+  // --- Routes ---
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
 
-  // Auth (rate-limited) + authenticated API.
-  const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false });
   app.use('/api/auth', authLimiter, authRoutes);
-
   app.use('/api/dashboard', dashboardRoutes);
-  // app.use('/api/brands', brandRoutes);
+  // app.use('/api/brands', requireAuth, brandRoutes);
   // app.use('/api/products', productRoutes);
 
+  // --- Error handling (must be last) ---
   app.use(notFound);
   app.use(errorHandler);
+
   return app;
 }
 
