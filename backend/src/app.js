@@ -17,6 +17,12 @@ export function createApp() {
   const app = express();
   app.set('trust proxy', 1);
 
+  app.use('/api/auth', authLimiter, authRoutes);   // ✅ your routes go here
+  app.use('/api/brands', requireAuth, brandRoutes);
+
+  app.use(notFound);      // ⬅️ keep these last, always
+  app.use(errorHandler);
+
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(
     cors({
