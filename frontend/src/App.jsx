@@ -11,8 +11,8 @@ import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 
-// import BrandsPage from './pages/BrandsPage';
-// import ProductsPage from './pages/ProductsPage';
+import BrandsPage from './pages/BrandsPage';
+import ProductsPage from './pages/ProductsPage';
 // import TeamPage from './pages/TeamPage';
 // import NotFoundPage from './pages/NotFoundPage';
 
@@ -64,10 +64,9 @@ function Router() {
         
         
         
-{/*         
         <Route path="/brands" element={<BrandsPage />} />
         <Route path="/products" element={<ProductsPage />} />
-        <Route path="/linkbio" element={<LinkBioBuilderPage />} /> */}
+        {/* <Route path="/linkbio" element={<LinkBioBuilderPage />} /> */}
        
       </Route>
 
