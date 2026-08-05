@@ -11,7 +11,7 @@ async function main() {
     await prisma.$connect();
     logger.success('Connected to MongoDB via Prisma');
   } catch (err) {
-    logger.error('Could not connect to MongoDB. Is the replica set running (docker compose up -d)?');
+    logger.error('Could not connect to MongoDB.');
     logger.error(err.message);
     process.exit(1);
   }
