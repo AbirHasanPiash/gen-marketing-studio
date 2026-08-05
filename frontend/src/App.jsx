@@ -10,6 +10,7 @@ import { AppShell } from './components/layout/AppShell';
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
+import ApprovalsPage from './pages/ApprovalsPage';
 
 import BrandsPage from './pages/BrandsPage';
 import ProductsPage from './pages/ProductsPage';
@@ -59,6 +60,8 @@ function Router() {
       >
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/approvals" element={<ApprovalsPage />} />
+        
         
         
         
