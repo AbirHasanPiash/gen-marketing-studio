@@ -1,0 +1,637 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+
+// Enums
+
+enum Role {
+  OWNER // Business owner: full control, approves content
+  CREATOR // Content creator: drafts & submits content for review
+}
+
+enum PostStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  REJECTED
+  ARCHIVED
+}
+
+enum Platform {
+  FACEBOOK
+  INSTAGRAM
+  WHATSAPP
+  GENERIC
+}
+
+enum AssetType {
+  IMAGE
+  VIDEO
+}
+
+enum AssetSource {
+  UPLOAD
+  AI_GENERATED
+  COMPOSITED
+  VIDEO_RENDER
+}
+
+enum BriefStatus {
+  DRAFT
+  GENERATING
+  COMPLETED
+  ARCHIVED
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCESS
+  FAILED
+  RETRYING
+  CANCELLED
+}
+
+enum VideoStatus {
+  DRAFT
+  RENDERING
+  READY
+  FAILED
+}
+
+enum SocialPlatform {
+  FACEBOOK
+  INSTAGRAM
+}
+
+enum NotificationType {
+  APPROVAL_REQUEST
+  APPROVED
+  REJECTED
+  PUBLISHED
+  PUBLISH_FAILED
+  SYSTEM
+}
+
+
+// Module 1 — Identity, tenancy & core content
+
+/// A tenant is an isolated workspace/organisation. All business data hangs off it.
+model Tenant {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  slug      String   @unique
+  plan      String   @default("free")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  brands        BrandProfile[]
+  products      Product[]
+  posts         Post[]
+  campaigns     Campaign[]
+  briefs        CreativeBrief[]
+  assets        Asset[]
+  promptCaches  PromptCache[]
+  socialAccts   SocialAccount[]
+  publications  Publication[]
+  publishJobs   PublishJob[]
+  analytics     AnalyticsSnapshot[]
+  linkPages     LinkInBioPage[]
+  qrCodes       QRCode[]
+  videos        VideoProject[]
+  notifications Notification[]
+  copyGens      CopyGeneration[]
+}
+
+model User {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(OWNER)
+  avatarUrl    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  authoredPosts  Post[]           @relation("PostAuthor")
+  reviewedPosts  Post[]           @relation("PostReviewer")
+  activities     PostActivity[]
+  briefs         CreativeBrief[]
+  notifications  Notification[]
+  copyGens       CopyGeneration[]
+
+  @@index([tenantId])
+}
+
+/// A brand/business profile. A tenant can hold multiple brands.
+model BrandProfile {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  slug        String
+  tagline     String?
+  description String?
+  industry    String?
+  website     String?
+  logoUrl     String?
+  email       String?
+  phone       String?
+  address     String?
+  socialLinks Json? // { facebook, instagram, tiktok, ... }
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  brandKit     BrandKit?
+  products     Product[]
+  posts        Post[]
+  campaigns    Campaign[]
+  briefs       CreativeBrief[]
+  assets       Asset[]
+  socialAccts  SocialAccount[]
+  linkPage     LinkInBioPage?
+  qrCodes      QRCode[]
+  videos       VideoProject[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+}
+
+/// Locked, reusable brand kit (Feature 5 — extracted palette + fonts).
+model BrandKit {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  palette      Json // [{ hex, name, role }]  role: primary|secondary|accent|...
+  primaryColor String?
+  fonts        Json? // { heading, body }
+  logoUrl      String?
+  locked       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  brandId String       @unique @db.ObjectId
+  brand   BrandProfile @relation(fields: [brandId], references: [id], onDelete: Cascade)
+}
+
+/// Product catalog entry.
+model Product {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  sku         String?
+  description String?
+  price       Float?
+  currency    String   @default("BDT")
+  category    String?
+  images      String[] @default([])
+  tags        String[] @default([])
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  brandId String       @db.ObjectId
+  brand   BrandProfile @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  briefs CreativeBrief[]
+
+  @@index([tenantId])
+  @@index([brandId])
+}
+
+/// A campaign groups posts around a theme (Feature 6 — local moments, etc.).
+model Campaign {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  theme       String?
+  description String?
+  startDate   DateTime?
+  endDate     DateTime?
+  color       String?   @default("#6366f1")
+  isSuggested Boolean   @default(false) // generated by the local campaign suggester
+  momentKey   String? // reference into the curated local-moments dataset
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  brandId String?       @db.ObjectId
+  brand   BrandProfile? @relation(fields: [brandId], references: [id], onDelete: SetNull)
+
+  posts   Post[]
+  qrCodes QRCode[]
+
+  @@index([tenantId])
+}
+
+/// The core content unit. Drives the calendar, editor, approval state machine
+/// and the publishing pipeline.
+model Post {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  title         String?
+  body          String     @default("")
+  hashtags      String[]   @default([])
+  mediaUrls     String[]   @default([])
+  platforms     Platform[] @default([])
+  status        PostStatus @default(DRAFT)
+  scheduledAt   DateTime?
+  publishedAt   DateTime?
+  // Multi-platform adaptation (Feature 11): per-platform variant text.
+  platformCopy  Json? // { FACEBOOK: "...", INSTAGRAM: "..." }
+  rejectReason  String?
+  reviewNote    String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  brandId String       @db.ObjectId
+  brand   BrandProfile @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  authorId String @db.ObjectId
+  author   User   @relation("PostAuthor", fields: [authorId], references: [id])
+
+  reviewerId String? @db.ObjectId
+  reviewer   User?   @relation("PostReviewer", fields: [reviewerId], references: [id])
+
+  campaignId String?   @db.ObjectId
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  activities   PostActivity[]
+  publications Publication[]
+  publishJobs  PublishJob[]
+
+  @@index([tenantId])
+  @@index([brandId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+/// Immutable audit log for the post lifecycle (Feature 4).
+model PostActivity {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  action    String // e.g. SUBMITTED, APPROVED, REJECTED, SCHEDULED, PUBLISHED
+  fromState String?
+  toState   String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  postId String @db.ObjectId
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  actorId String @db.ObjectId
+  actor   User   @relation(fields: [actorId], references: [id])
+
+  @@index([postId])
+}
+
+
+// Module 2 — Generative pipelines
+
+/// Creative brief (Feature 3 input): product + style + mood + references.
+model CreativeBrief {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  title      String
+  productRef String? // free-text product name if no catalog link
+  style      String? // e.g. minimalist, vibrant, luxury
+  mood       String? // e.g. festive, calm, energetic
+  palette    String? // hint palette
+  references String[]    @default([]) // reference image URLs
+  notes      String?
+  prompt     String? // resolved prompt used for generation
+  status     BriefStatus @default(DRAFT)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  brandId String       @db.ObjectId
+  brand   BrandProfile @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  productId String?  @db.ObjectId
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  authorId String @db.ObjectId
+  author   User   @relation(fields: [authorId], references: [id])
+
+  assets Asset[]
+
+  @@index([tenantId])
+  @@index([brandId])
+}
+
+/// Any visual asset — uploaded, AI-generated, composited or a rendered video.
+/// Supports the versioned gallery (Feature 3) via `version` + `parentAssetId`.
+model Asset {
+  id             String      @id @default(auto()) @map("_id") @db.ObjectId
+  url            String
+  thumbnailUrl   String?
+  type           AssetType   @default(IMAGE)
+  source         AssetSource @default(UPLOAD)
+  prompt         String? // prompt that generated it (AI assets)
+  cloudinaryId   String?
+  width          Int?
+  height         Int?
+  bytes          Int?
+  format         String?
+  colors         Json? // extracted palette
+  tags           String[]    @default([])
+  version        Int         @default(1)
+  isFavorite     Boolean     @default(false)
+  performance    Float       @default(0) // used to rank "high-performing" prompts
+  meta           Json?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  brandId String?       @db.ObjectId
+  brand   BrandProfile? @relation(fields: [brandId], references: [id], onDelete: SetNull)
+
+  briefId String?        @db.ObjectId
+  brief   CreativeBrief? @relation(fields: [briefId], references: [id], onDelete: SetNull)
+
+  parentAssetId String? @db.ObjectId
+  parentAsset   Asset?  @relation("AssetVersions", fields: [parentAssetId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  versions      Asset[] @relation("AssetVersions")
+
+  @@index([tenantId])
+  @@index([brandId])
+  @@index([briefId])
+}
+
+/// Prompt cache (Feature 7) — dedupes costly image-gen calls & tracks winners.
+model PromptCache {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  promptHash   String // sha256 of normalized(prompt + model + params)
+  prompt       String
+  model        String
+  params       Json?
+  resultUrls   String[] @default([])
+  hitCount     Int      @default(0)
+  performance  Float    @default(0)
+  lastUsedAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, promptHash])
+  @@index([tenantId])
+  @@index([performance])
+}
+
+/// Stored AI copy generations (Feature 6) — captions/hashtags/ad-copy variants.
+model CopyGeneration {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  kind       String // caption | hashtags | ad_copy
+  input      Json // { product, tone, platform, ... }
+  variations String[] @default([])
+  chosen     String?
+  model      String   @default("llama-3.1")
+  createdAt  DateTime @default(now())
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  authorId String @db.ObjectId
+  author   User   @relation(fields: [authorId], references: [id])
+
+  @@index([tenantId])
+}
+
+
+// Module 3 — Publishing, channels & analytics
+
+/// A connected Meta (Facebook/Instagram) account (Feature 8).
+model SocialAccount {
+  id             String         @id @default(auto()) @map("_id") @db.ObjectId
+  platform       SocialPlatform
+  externalId     String // page id / ig business id
+  name           String
+  accessToken    String // encrypted at rest (see crypto util)
+  tokenExpiresAt DateTime?
+  igBusinessId   String?
+  pageId         String?
+  scopes         String[]       @default([])
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  brandId String       @db.ObjectId
+  brand   BrandProfile @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  publications Publication[]
+
+  @@index([tenantId])
+  @@index([brandId])
+}
+
+/// A single published output of a post on one platform.
+model Publication {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  platform     Platform
+  externalId   String? // returned post/media id
+  permalink    String?
+  status       JobStatus @default(QUEUED)
+  error        String?
+  publishedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  postId String @db.ObjectId
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  socialAccountId String?        @db.ObjectId
+  socialAccount   SocialAccount? @relation(fields: [socialAccountId], references: [id], onDelete: SetNull)
+
+  analytics AnalyticsSnapshot[]
+
+  @@index([tenantId])
+  @@index([postId])
+}
+
+/// Tracks the background publish job & retry state (Features 8 + 16).
+model PublishJob {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  status       JobStatus @default(QUEUED)
+  attempts     Int       @default(0)
+  maxAttempts  Int       @default(5)
+  lastError    String?
+  runAt        DateTime
+  nextRetryAt  DateTime?
+  agendaJobId  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  postId String @db.ObjectId
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+}
+
+/// Engagement snapshot pulled from Meta (Feature 15).
+model AnalyticsSnapshot {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  views       Int      @default(0)
+  impressions Int      @default(0)
+  reach       Int      @default(0)
+  likes       Int      @default(0)
+  comments    Int      @default(0)
+  shares      Int      @default(0)
+  saves       Int      @default(0)
+  clicks      Int      @default(0)
+  engagement  Float    @default(0) // computed engagement rate
+  capturedAt  DateTime @default(now())
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  publicationId String      @db.ObjectId
+  publication   Publication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([publicationId])
+  @@index([capturedAt])
+}
+
+/// Public Link-in-bio mini landing page (Feature 9).
+model LinkInBioPage {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  slug       String   @unique
+  title      String
+  bio        String?
+  avatarUrl  String?
+  theme      Json? // { bg, accent, style }
+  published  Boolean  @default(false)
+  viewCount  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  brandId String       @unique @db.ObjectId
+  brand   BrandProfile @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  links LinkItem[]
+}
+
+model LinkItem {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  label    String
+  url      String
+  icon     String?
+  order    Int     @default(0)
+  isActive Boolean @default(true)
+  clicks   Int     @default(0)
+
+  pageId String        @db.ObjectId
+  page   LinkInBioPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+}
+
+/// QR code generator (Feature 10).
+model QRCode {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  label      String
+  targetUrl  String
+  dataUrl    String? // rendered PNG data URL (cached)
+  fgColor    String   @default("#000000")
+  bgColor    String   @default("#ffffff")
+  scanCount  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  brandId String?       @db.ObjectId
+  brand   BrandProfile? @relation(fields: [brandId], references: [id], onDelete: SetNull)
+
+  campaignId String?   @db.ObjectId
+  campaign   Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+}
+
+/// Programmatic video project (Feature 14 — FFmpeg reels).
+model VideoProject {
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  title      String
+  images     String[]    @default([]) // ordered source image URLs
+  captions   String[]    @default([]) // overlay text per scene
+  audioUrl   String?
+  outputUrl  String?
+  durationS  Int         @default(10)
+  aspect     String      @default("9:16")
+  status     VideoStatus @default(DRAFT)
+  error      String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  brandId String?       @db.ObjectId
+  brand   BrandProfile? @relation(fields: [brandId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+}
+
+/// In-app notifications (approval requests, publish results, ...).
+model Notification {
+  id        String           @id @default(auto()) @map("_id") @db.ObjectId
+  type      NotificationType
+  title     String
+  body      String?
+  link      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  tenantId String @db.ObjectId
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}

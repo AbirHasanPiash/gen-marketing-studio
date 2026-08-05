@@ -1,0 +1,16 @@
+{
+  "name": "generative-marketing-studio",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-powered social marketing studio for local brands",
+  "scripts": {
+    "dev": "concurrently -n api,web -c magenta,cyan \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
+    "install:all": "npm --prefix backend install && npm --prefix frontend install",
+    "db:setup": "npm --prefix backend run db:setup",
+    "seed": "npm --prefix backend run seed",
+    "build": "npm --prefix frontend run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}
