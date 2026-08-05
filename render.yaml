@@ -1,0 +1,48 @@
+# Render blueprint for the mkt_studio backend.
+# 1. Create a MongoDB Atlas cluster (free M0 — it's a replica set by default).
+# 2. In Render: New → Blueprint → point at this repo.
+# 3. Fill the secret env vars marked `sync: false` (DATABASE_URL, keys, URLs).
+services:
+  - type: web
+    name: mkt-studio-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      # --- Fill these in the Render dashboard (they hold secrets / URLs) ---
+      - key: DATABASE_URL # mongodb+srv://...  (Atlas connection string)
+        sync: false
+      - key: TOKEN_ENCRYPTION_KEY # 32-byte hex — see README
+        sync: false
+      - key: API_BASE_URL # https://mkt-studio-api.onrender.com
+        sync: false
+      - key: WEB_BASE_URL # https://your-frontend.vercel.app
+        sync: false
+      # --- Optional integrations (leave blank to use mock/keyless modes) ---
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: IMAGE_PROVIDER
+        value: pollinations
+      - key: META_APP_ID
+        sync: false
+      - key: META_APP_SECRET
+        sync: false
+      - key: META_GRAPH_VERSION
+        value: v21.0

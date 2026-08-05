@@ -1,0 +1,36 @@
+# ============================================================================
+# Local infrastructure for mkt_studio.
+# MongoDB must run as a replica set for Prisma (transactions). This spins up a
+# single-node replica set (rs0) and auto-initiates it via the healthcheck.
+#
+#   docker compose up -d
+#
+# Connection string (already in backend/.env.example):
+#   mongodb://localhost:27017/mkt_studio?replicaSet=rs0&directConnection=true
+# ============================================================================
+services:
+  mongo:
+    image: mongo:7
+    container_name: mkt_studio_mongo
+    restart: unless-stopped
+    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      # Initiates the replica set on first run, then reports healthy once it is up.
+      test: >
+        mongosh --quiet --eval "
+          try { rs.status().ok }
+          catch (e) {
+            rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok
+          }
+        "
+      interval: 5s
+      timeout: 30s
+      start_period: 10s
+      retries: 30
+
+volumes:
+  mongo_data:
