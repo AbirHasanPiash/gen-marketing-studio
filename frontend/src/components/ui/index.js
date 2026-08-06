@@ -6,3 +6,4 @@ export { Modal, ConfirmDialog } from './Modal';
 export { Tabs, UnderlineTabs } from './Tabs';
 export { Menu, MenuItem } from './Menu';
 export { Spinner, Skeleton, Avatar, EmptyState, Switch } from './Feedback';
+export { StudioMark } from './Logo';

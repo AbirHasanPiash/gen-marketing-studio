@@ -12,6 +12,7 @@ import authRoutes from './modules/auth/auth.routes.js';
 import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
 import brandRoutes from './modules/brand/brand.routes.js';
 import productRoutes from './modules/product/product.routes.js';
+import postRoutes from './modules/post/post.routes.js';
 
 export function createApp() {
   const app = express();
@@ -55,8 +56,9 @@ export function createApp() {
 
   app.use('/api/auth', authLimiter, authRoutes);
   app.use('/api/dashboard', dashboardRoutes);
-  // app.use('/api/brands', requireAuth, brandRoutes);
-  // app.use('/api/products', productRoutes);
+  app.use('/api/brands', brandRoutes);
+  app.use('/api/products', productRoutes);
+  app.use('/api/posts', postRoutes);
 
   // --- Error handling (must be last) ---
   app.use(notFound);
