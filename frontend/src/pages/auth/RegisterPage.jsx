@@ -34,8 +34,8 @@ export default function RegisterPage() {
         <Field label="Your name">
           <Input icon={User} required placeholder="Aisha Rahman" value={form.name} onChange={set('name')} />
         </Field>
-        <Field label="Business / workspace name" hint="optional">
-          <Input icon={Building2} placeholder="Nokshi Threads" value={form.tenantName} onChange={set('tenantName')} />
+        <Field label="Business / workspace name">
+          <Input icon={Building2} required placeholder="Nokshi Threads" value={form.tenantName} onChange={set('tenantName')} />
         </Field>
         <Field label="Email">
           <Input icon={Mail} type="email" required placeholder="you@company.com" value={form.email} onChange={set('email')} />

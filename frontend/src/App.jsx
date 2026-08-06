@@ -15,7 +15,9 @@ import ApprovalsPage from './pages/ApprovalsPage';
 import BrandsPage from './pages/BrandsPage';
 import ProductsPage from './pages/ProductsPage';
 import TeamPage from './pages/TeamPage';
-// import NotFoundPage from './pages/NotFoundPage';
+import BriefsPage from './pages/BriefsPage';
+import AssetsPage from './pages/AssetsPage';
+
 
 function Splash() {
   return (
@@ -61,6 +63,8 @@ function Router() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/approvals" element={<ApprovalsPage />} />
+        <Route path="/briefs" element={<BriefsPage />} />
+        <Route path="/assets" element={<AssetsPage />} />
         
         
         
