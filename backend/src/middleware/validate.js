@@ -1,7 +1,3 @@
-/**
- * Zod validation middleware. Pass a schema shaped like
- * `{ body?, query?, params? }`. Parsed & coerced values replace the originals.
- */
 export const validate = (schema) => (req, _res, next) => {
   try {
     if (schema.body) req.body = schema.body.parse(req.body ?? {});

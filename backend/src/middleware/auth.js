@@ -10,10 +10,7 @@ function extractToken(req) {
   return null;
 }
 
-/**
- * Verifies the JWT, loads the user and pins the request to that user's tenant.
- * Every downstream query MUST scope by `req.tenantId` for multi-tenant isolation.
- */
+
 export const authenticate = asyncHandler(async (req, _res, next) => {
   const token = extractToken(req);
   if (!token) throw ApiError.unauthorized('Authentication required');

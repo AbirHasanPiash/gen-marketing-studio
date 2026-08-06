@@ -13,11 +13,15 @@ import brandRoutes from './modules/brand/brand.routes.js';
 import postRoutes from './modules/post/post.routes.js';
 import campaignRoutes from './modules/campaign/campaign.routes.js';
 import mediaRoutes from './modules/media/media.routes.js';
+import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
+import brandRoutes from './modules/brand/brand.routes.js';
+import productRoutes from './modules/product/product.routes.js';
 
 export function createApp() {
   const app = express();
   app.set('trust proxy', 1);
 
+  // --- Core middleware (must come first) ---
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(
     cors({
@@ -30,6 +34,7 @@ export function createApp() {
   app.use(cookieParser());
   if (!env.isProd) app.use(morgan('dev'));
 
+  // --- Health check ---
   app.get('/api/health', (_req, res) =>
     res.json({
       success: true,
@@ -52,9 +57,23 @@ export function createApp() {
   app.use('/api/posts', postRoutes);
   app.use('/api/campaigns', campaignRoutes);
   app.use('/api/media', mediaRoutes);
+  // --- Routes ---
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
 
+  app.use('/api/auth', authLimiter, authRoutes);
+  app.use('/api/dashboard', dashboardRoutes);
+  // app.use('/api/brands', requireAuth, brandRoutes);
+  // app.use('/api/products', productRoutes);
+
+  // --- Error handling (must be last) ---
   app.use(notFound);
   app.use(errorHandler);
+
   return app;
 }
 
