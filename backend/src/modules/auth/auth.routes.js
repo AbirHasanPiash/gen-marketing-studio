@@ -12,7 +12,7 @@ import { uniqueSlug } from '../../utils/slug.js';
 const router = Router();
 
 const publicUser = (u) => ({
-  id: u.id,   
+  id: u.id,
   name: u.name,
   email: u.email,
   role: u.role,
@@ -60,7 +60,7 @@ router.post(
     });
   })
 );
-    
+
 router.post(
   '/login',
   validate({ body: z.object({ email: z.string().email(), password: z.string().min(1) }) }),

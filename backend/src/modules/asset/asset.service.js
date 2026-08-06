@@ -28,6 +28,11 @@ export function buildPromptFromBrief(brief, brand) {
 const cacheKey = (prompt, provider, width, height) =>
   sha256(`${normalizePrompt(prompt)}|${provider}|${width}x${height}`);
 
+/**
+ * Text-to-image with a caching layer (Feature 7). Identical prompts return the
+ * cached image URLs instead of calling the (potentially paid) provider again,
+ * while tracking hit counts to surface high-performing prompts.
+ */
 export async function generateFromPrompt({
   tenantId,
   prompt,

@@ -7,6 +7,7 @@ import { asyncHandler, ok, created } from '../../utils/http.js';
 import { ensureBrand } from '../../utils/scope.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { uniqueSlug } from '../../utils/slug.js';
+import { extractPalette } from '../../lib/vibrant.js';
 
 const router = Router();
 router.use(authenticate);
@@ -87,5 +88,56 @@ router.delete(
   })
 );
 
+// --- Brand Kit (Feature 5) -------------------------------------------------
+
+router.get(
+  '/:id/kit',
+  asyncHandler(async (req, res) => {
+    await ensureBrand(req.tenantId, req.params.id);
+    const kit = await prisma.brandKit.findUnique({ where: { brandId: req.params.id } });
+    return ok(res, kit);
+  })
+);
+
+router.post(
+  '/:id/kit/extract',
+  requireRole('OWNER'),
+  validate({ body: z.object({ logoUrl: z.string().min(1) }) }),
+  asyncHandler(async (req, res) => {
+    await ensureBrand(req.tenantId, req.params.id);
+    const { palette, source } = await extractPalette(req.body.logoUrl);
+    return ok(res, { palette, source });
+  })
+);
+
+router.put(
+  '/:id/kit',
+  requireRole('OWNER'),
+  validate({
+    body: z.object({
+      palette: z.array(z.object({ hex: z.string(), name: z.string().optional(), role: z.string().optional() })),
+      primaryColor: z.string().optional().nullable(),
+      fonts: z.object({ heading: z.string().optional(), body: z.string().optional() }).optional().nullable(),
+      logoUrl: z.string().optional().nullable(),
+      locked: z.boolean().optional(),
+    }),
+  }),
+  asyncHandler(async (req, res) => {
+    await ensureBrand(req.tenantId, req.params.id);
+    const data = {
+      palette: req.body.palette,
+      primaryColor: req.body.primaryColor || req.body.palette?.[0]?.hex,
+      fonts: req.body.fonts ?? undefined,
+      logoUrl: req.body.logoUrl ?? undefined,
+      locked: req.body.locked ?? false,
+    };
+    const kit = await prisma.brandKit.upsert({
+      where: { brandId: req.params.id },
+      create: { ...data, brandId: req.params.id },
+      update: data,
+    });
+    return ok(res, kit);
+  })
+);
 
 export default router;

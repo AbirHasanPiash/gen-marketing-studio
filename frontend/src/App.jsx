@@ -9,10 +9,10 @@ import { AppShell } from './components/layout/AppShell';
 
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
-import DashboardPage from './pages/DashboardPage';
-import ApprovalsPage from './pages/ApprovalsPage';
-
+import CalendarPage from './pages/CalendarPage';
+import PostEditorPage from './pages/PostEditorPage';
 import BrandsPage from './pages/BrandsPage';
+import NotFoundPage from './pages/NotFoundPage';
 import ProductsPage from './pages/ProductsPage';
 import TeamPage from './pages/TeamPage';
 import BriefsPage from './pages/BriefsPage';
@@ -40,7 +40,7 @@ function RequireAuth({ children }) {
 function GuestOnly({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <Splash />;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to="/calendar" replace />;
   return children;
 }
 
@@ -50,7 +50,6 @@ function Router() {
       {/* Public */}
       <Route path="/login" element={<GuestOnly><LoginPage /></GuestOnly>} />
       <Route path="/register" element={<GuestOnly><RegisterPage /></GuestOnly>} />
-      {/* <Route path="/l/:slug" element={<PublicLinkBioPage />} /> */}
 
       {/* Authenticated app */}
       <Route
@@ -60,6 +59,10 @@ function Router() {
           </RequireAuth>
         }
       >
+        <Route path="/" element={<Navigate to="/calendar" replace />} />
+        <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/posts/new" element={<PostEditorPage />} />
+        <Route path="/posts/:id" element={<PostEditorPage />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/approvals" element={<ApprovalsPage />} />
@@ -72,13 +75,9 @@ function Router() {
         
         
         <Route path="/brands" element={<BrandsPage />} />
-        <Route path="/products" element={<ProductsPage />} />
-        <Route path="/team" element={<TeamPage />} />
-        
-       
       </Route>
 
-      {/* <Route path="*" element={<NotFoundPage />} /> */}
+      <Route path="*" element={<NotFoundPage />} />
     </Routes>
   );
 }

@@ -6,6 +6,7 @@ import { authenticate } from '../../middleware/auth.js';
 import { asyncHandler, ok, created, paginate, pageMeta } from '../../utils/http.js';
 import { ensureBrand, ensureOwned } from '../../utils/scope.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { generateFromPrompt, SIZE_PRESETS } from './asset.service.js';
 
 const router = Router();
 router.use(authenticate);
@@ -26,6 +27,38 @@ const assetBody = z.object({
   parentAssetId: z.string().optional().nullable(),
 });
 
+// --- Text-to-image generation (Feature 7) ----------------------------------
+
+router.get('/sizes', authenticate, (_req, res) => ok(res, SIZE_PRESETS));
+
+router.post(
+  '/generate',
+  validate({
+    body: z.object({
+      prompt: z.string().min(3).max(1000),
+      size: z.enum(['square', 'portrait', 'story', 'landscape']).default('square'),
+      count: z.coerce.number().int().min(1).max(4).default(2),
+      force: z.boolean().default(false),
+    }),
+  }),
+  asyncHandler(async (req, res) => {
+    const result = await generateFromPrompt({ tenantId: req.tenantId, ...req.body });
+    return ok(res, result);
+  })
+);
+
+/** High-performing / most-reused prompts (Feature 7 cache view). */
+router.get(
+  '/cache',
+  asyncHandler(async (req, res) => {
+    const entries = await prisma.promptCache.findMany({
+      where: { tenantId: req.tenantId },
+      orderBy: [{ performance: 'desc' }, { hitCount: 'desc' }, { lastUsedAt: 'desc' }],
+      take: 50,
+    });
+    return ok(res, entries);
+  })
+);
 
 router.post(
   '/cache/:id/boost',
@@ -39,7 +72,7 @@ router.post(
   })
 );
 
-// Versioned gallery (Feature 3)
+// --- Versioned gallery (Feature 3) -----------------------------------------
 
 router.get(
   '/',

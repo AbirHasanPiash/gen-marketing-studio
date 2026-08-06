@@ -2,7 +2,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Menu as MenuIcon, Sun, Moon, LogOut, Plus, ChevronDown } from 'lucide-react';
 import { Menu, MenuItem, Avatar, Button } from '../ui';
 import { BrandSwitcher } from './BrandSwitcher';
-import { NotificationBell } from './NotificationBell';
 import { useUI } from '../../store/ui';
 import { useAuth } from '../../store/auth';
 
@@ -36,8 +35,6 @@ export function Topbar() {
             {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
 
-          <NotificationBell />
-
           <Menu
             width="w-56"
             trigger={() => (
@@ -59,11 +56,6 @@ export function Topbar() {
             <Link to="/brands">
               <MenuItem>Brands & settings</MenuItem>
             </Link>
-            {user?.role === 'OWNER' && (
-              <Link to="/team">
-                <MenuItem>Team</MenuItem>
-              </Link>
-            )}
             <MenuItem icon={LogOut} danger onClick={logout}>
               Sign out
             </MenuItem>

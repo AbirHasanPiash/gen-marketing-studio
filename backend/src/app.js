@@ -9,6 +9,10 @@ import { env } from './config/env.js';
 import { notFound, errorHandler } from './middleware/error.js';
 
 import authRoutes from './modules/auth/auth.routes.js';
+import brandRoutes from './modules/brand/brand.routes.js';
+import postRoutes from './modules/post/post.routes.js';
+import campaignRoutes from './modules/campaign/campaign.routes.js';
+import mediaRoutes from './modules/media/media.routes.js';
 import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
 import brandRoutes from './modules/brand/brand.routes.js';
 import productRoutes from './modules/product/product.routes.js';
@@ -46,6 +50,14 @@ export function createApp() {
     })
   );
 
+  // Auth (rate-limited) + authenticated API.
+  const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false });
+  app.use('/api/auth', authLimiter, authRoutes);
+
+  app.use('/api/brands', brandRoutes);
+  app.use('/api/posts', postRoutes);
+  app.use('/api/campaigns', campaignRoutes);
+  app.use('/api/media', mediaRoutes);
   // --- Routes ---
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
