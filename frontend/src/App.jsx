@@ -13,6 +13,11 @@ import CalendarPage from './pages/CalendarPage';
 import PostEditorPage from './pages/PostEditorPage';
 import BrandsPage from './pages/BrandsPage';
 import NotFoundPage from './pages/NotFoundPage';
+import ProductsPage from './pages/ProductsPage';
+import TeamPage from './pages/TeamPage';
+import BriefsPage from './pages/BriefsPage';
+import AssetsPage from './pages/AssetsPage';
+
 
 function Splash() {
   return (
@@ -58,6 +63,17 @@ function Router() {
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/posts/new" element={<PostEditorPage />} />
         <Route path="/posts/:id" element={<PostEditorPage />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/approvals" element={<ApprovalsPage />} />
+        <Route path="/briefs" element={<BriefsPage />} />
+        <Route path="/assets" element={<AssetsPage />} />
+        
+        
+        
+        
+        
+        
         <Route path="/brands" element={<BrandsPage />} />
       </Route>
 

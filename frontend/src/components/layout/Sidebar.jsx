@@ -1,6 +1,8 @@
 import { NavLink } from 'react-router-dom';
-import { X, Sparkles } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { X } from 'lucide-react';
 import { NAV_GROUPS } from './navConfig';
+import { StudioMark } from '../ui';
 import { useUI } from '../../store/ui';
 import { useAuth } from '../../store/auth';
 import { cn } from '../../lib/utils';
@@ -9,7 +11,7 @@ function Brandmark() {
   return (
     <div className="flex items-center gap-2.5 px-2">
       <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-glow">
-        <Sparkles className="h-5 w-5" />
+        <StudioMark className="h-5 w-5" />
       </div>
       <div className="leading-tight">
         <p className="font-display font-bold text-fg">mkt_studio</p>

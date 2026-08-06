@@ -26,9 +26,9 @@ async function main() {
 
   const server = app.listen(env.port, () => {
     logger.success(`API listening on ${env.apiBaseUrl} (port ${env.port})`);
-    logger.info(
-      `Integrations → cloudinary:${env.cloudinary.enabled} groq:${env.groq.enabled} meta:${env.meta.enabled} image:${env.image.provider}`
-    );
+    // logger.info(
+    //   `Integrations → cloudinary:${env.cloudinary.enabled} groq:${env.groq.enabled} meta:${env.meta.enabled} image:${env.image.provider}`
+    // );
   });
 
   const shutdown = async (signal) => {
