@@ -14,7 +14,7 @@ import ApprovalsPage from './pages/ApprovalsPage';
 
 import BrandsPage from './pages/BrandsPage';
 import ProductsPage from './pages/ProductsPage';
-// import TeamPage from './pages/TeamPage';
+import TeamPage from './pages/TeamPage';
 // import NotFoundPage from './pages/NotFoundPage';
 
 function Splash() {
@@ -69,7 +69,8 @@ function Router() {
         
         <Route path="/brands" element={<BrandsPage />} />
         <Route path="/products" element={<ProductsPage />} />
-        {/* <Route path="/linkbio" element={<LinkBioBuilderPage />} /> */}
+        <Route path="/team" element={<TeamPage />} />
+        
        
       </Route>
 
