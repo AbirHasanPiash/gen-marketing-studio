@@ -27,6 +27,10 @@ export function errorHandler(err, req, res, next) {
   } else if (err.code === 'P2023' || err.name === 'PrismaClientValidationError') {
     status = 400;
     message = 'Invalid identifier or query';
+    // The Prisma message names the offending field/value — without it this 400
+    // is undebuggable from the client, so surface it outside production.
+    if (!env.isProd) details = err.message;
+    logger.warn(`${req.method} ${req.originalUrl} →`, err.message);
   }
 
   if (status >= 500) {

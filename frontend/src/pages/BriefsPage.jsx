@@ -29,7 +29,7 @@ export default function BriefsPage() {
   });
 
   const save = useMutation({
-    mutationFn: (b) => post('/briefs', { ...b, brandId: activeBrandId }),
+    mutationFn: (b) => post('/briefs', { ...b, brandId: activeBrandId, productId: b.productId || null }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['briefs'] }); setEditing(null); toast.success('Brief created'); },
     onError: (e) => toast.error(e.message),
   });

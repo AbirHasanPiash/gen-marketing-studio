@@ -9,15 +9,27 @@ import { AppShell } from './components/layout/AppShell';
 
 import LoginPage from './pages/auth/LoginPage';
 import RegisterPage from './pages/auth/RegisterPage';
+import PublicLinkBioPage from './pages/public/PublicLinkBioPage';
+import DashboardPage from './pages/DashboardPage';
 import CalendarPage from './pages/CalendarPage';
+import ApprovalsPage from './pages/ApprovalsPage';
 import PostEditorPage from './pages/PostEditorPage';
-import BrandsPage from './pages/BrandsPage';
-import NotFoundPage from './pages/NotFoundPage';
-import ProductsPage from './pages/ProductsPage';
-import TeamPage from './pages/TeamPage';
 import BriefsPage from './pages/BriefsPage';
 import AssetsPage from './pages/AssetsPage';
-
+import CopyStudioPage from './pages/CopyStudioPage';
+import ImageStudioPage from './pages/ImageStudioPage';
+import CampaignsPage from './pages/CampaignsPage';
+import CompositePage from './pages/CompositePage';
+import VideoPage from './pages/VideoPage';
+import BrandsPage from './pages/BrandsPage';
+import ProductsPage from './pages/ProductsPage';
+import LinkBioBuilderPage from './pages/LinkBioBuilderPage';
+import QrPage from './pages/QrPage';
+import ConnectionsPage from './pages/ConnectionsPage';
+import PublishingPage from './pages/PublishingPage';
+import AnalyticsPage from './pages/AnalyticsPage';
+import TeamPage from './pages/TeamPage';
+import NotFoundPage from './pages/NotFoundPage';
 
 function Splash() {
   return (
@@ -40,7 +52,7 @@ function RequireAuth({ children }) {
 function GuestOnly({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <Splash />;
-  if (user) return <Navigate to="/calendar" replace />;
+  if (user) return <Navigate to="/dashboard" replace />;
   return children;
 }
 
@@ -50,6 +62,7 @@ function Router() {
       {/* Public */}
       <Route path="/login" element={<GuestOnly><LoginPage /></GuestOnly>} />
       <Route path="/register" element={<GuestOnly><RegisterPage /></GuestOnly>} />
+      <Route path="/l/:slug" element={<PublicLinkBioPage />} />
 
       {/* Authenticated app */}
       <Route
@@ -59,22 +72,28 @@ function Router() {
           </RequireAuth>
         }
       >
-        <Route path="/" element={<Navigate to="/calendar" replace />} />
-        <Route path="/calendar" element={<CalendarPage />} />
-        <Route path="/posts/new" element={<PostEditorPage />} />
-        <Route path="/posts/:id" element={<PostEditorPage />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/approvals" element={<ApprovalsPage />} />
+        <Route path="/posts/new" element={<PostEditorPage />} />
+        <Route path="/posts/:id" element={<PostEditorPage />} />
         <Route path="/briefs" element={<BriefsPage />} />
         <Route path="/assets" element={<AssetsPage />} />
-        
-        
-        
-        
-        
-        
+        <Route path="/copy" element={<CopyStudioPage />} />
+        <Route path="/images" element={<ImageStudioPage />} />
+        <Route path="/campaigns" element={<CampaignsPage />} />
+        <Route path="/composite" element={<CompositePage />} />
+        <Route path="/video" element={<VideoPage />} />
         <Route path="/brands" element={<BrandsPage />} />
+        <Route path="/products" element={<ProductsPage />} />
+        <Route path="/linkbio" element={<LinkBioBuilderPage />} />
+        <Route path="/qr" element={<QrPage />} />
+        <Route path="/connections" element={<ConnectionsPage />} />
+        <Route path="/settings/connections" element={<Navigate to="/connections" replace />} />
+        <Route path="/publishing" element={<PublishingPage />} />
+        <Route path="/analytics" element={<AnalyticsPage />} />
+        <Route path="/team" element={<TeamPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

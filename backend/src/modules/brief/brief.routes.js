@@ -6,15 +6,16 @@ import { authenticate } from '../../middleware/auth.js';
 import { asyncHandler, ok, created } from '../../utils/http.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { ensureBrand, ensureOwned } from '../../utils/scope.js';
-import { buildPromptFromBrief, generateFromPrompt } from '../asset/asset.service.js';
+import { objectId, optionalObjectId } from '../../utils/validators.js';
+
 
 const router = Router();
 router.use(authenticate);
 
 const briefBody = z.object({
   title: z.string().min(2).max(160),
-  brandId: z.string().min(1),
-  productId: z.string().optional().nullable(),
+  brandId: objectId('brandId'),
+  productId: optionalObjectId('productId'),
   productRef: z.string().max(160).optional().nullable(),
   style: z.string().max(80).optional().nullable(),
   mood: z.string().max(80).optional().nullable(),
@@ -74,15 +75,7 @@ router.post(
   })
 );
 
-router.patch(
-  '/:id',
-  validate({ body: briefBody.partial().omit({ brandId: true }) }),
-  asyncHandler(async (req, res) => {
-    await ensureOwned('creativeBrief', req.tenantId, req.params.id);
-    const brief = await prisma.creativeBrief.update({ where: { id: req.params.id }, data: req.body });
-    return ok(res, brief);
-  })
-);
+
 
 router.delete(
   '/:id',
@@ -93,32 +86,5 @@ router.delete(
   })
 );
 
-/** Turn a brief into on-brand image candidates (Features 3 + 7). */
-router.post(
-  '/:id/generate',
-  validate({
-    body: z.object({
-      size: z.enum(['square', 'portrait', 'story', 'landscape']).default('square'),
-      count: z.coerce.number().int().min(1).max(4).default(2),
-      force: z.boolean().default(false),
-    }),
-  }),
-  asyncHandler(async (req, res) => {
-    const brief = await prisma.creativeBrief.findFirst({
-      where: { id: req.params.id, tenantId: req.tenantId },
-      include: { brand: true },
-    });
-    if (!brief) throw ApiError.notFound('Brief not found');
-
-    const prompt = brief.prompt || buildPromptFromBrief(brief, brief.brand);
-    const result = await generateFromPrompt({ tenantId: req.tenantId, prompt, ...req.body });
-
-    await prisma.creativeBrief.update({
-      where: { id: brief.id },
-      data: { prompt, status: 'COMPLETED' },
-    });
-    return ok(res, { ...result, briefId: brief.id });
-  })
-);
 
 export default router;
