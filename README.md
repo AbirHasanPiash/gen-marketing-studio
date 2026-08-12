@@ -80,8 +80,9 @@ CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
 CLOUDINARY_API_SECRET=
 
-GROQ_API_KEY=
-GROQ_MODEL=llama-3.1-8b-instant
+OPENROUTER_API_KEY=
+OPENROUTER_API_URL=https://openrouter.ai/api/v1/chat/completions
+OPENROUTER_MODEL=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
 
 IMAGE_PROVIDER=pollinations
 STABILITY_API_KEY=

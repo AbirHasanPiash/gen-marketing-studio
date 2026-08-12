@@ -14,7 +14,15 @@ export async function streamPost(path, body, { onToken, onDone, onError } = {}) 
       },
       body: JSON.stringify(body),
     });
-    if (!res.ok || !res.body) throw new Error(`Stream failed (${res.status})`);
+    if (!res.ok || !res.body) {
+      const payload = await res.json().catch(() => null);
+      const details = payload?.error?.details;
+      const detailText = Array.isArray(details)
+        ? details.map((d) => `${d.path}: ${d.message}`).join(', ')
+        : details;
+      const message = payload?.error?.message || `Stream failed (${res.status})`;
+      throw new Error(detailText ? `${message}: ${detailText}` : message);
+    }
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();

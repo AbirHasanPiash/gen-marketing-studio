@@ -37,12 +37,24 @@ export const env = {
     },
   },
 
-  groq: {
-    apiKey: process.env.GROQ_API_KEY || '',
-    model: process.env.GROQ_MODEL || 'llama-3.1-8b-instant',
+  openRouter: {
+    apiKey: process.env.OPENROUTER_API_KEY || process.env.GROQ_API_KEY || '',
+    apiUrl:
+      process.env.OPENROUTER_API_URL ||
+      process.env.API_URL ||
+      'https://openrouter.ai/api/v1/chat/completions',
+    model:
+      process.env.OPENROUTER_MODEL ||
+      process.env.GROQ_MODEL ||
+      'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
     get enabled() {
       return Boolean(this.apiKey);
     },
+  },
+
+  // Backwards-compatible alias for modules that still import the Groq helper.
+  get groq() {
+    return this.openRouter;
   },
 
   image: {
