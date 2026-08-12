@@ -32,6 +32,7 @@ export const NAV_GROUPS = [
     label: 'Create with AI',
     items: [
       { to: '/briefs', label: 'Creative Briefs', icon: FileText },
+      { to: '/copy', label: 'Copy Studio', icon: Sparkles },
       // { to: '/assets', label: 'Asset Library', icon: Images },
     ],
   },

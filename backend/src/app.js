@@ -55,7 +55,7 @@ export function createApp() {
       env: env.nodeEnv,
       integrations: {
         cloudinary: env.cloudinary.enabled,
-        groq: env.groq.enabled,
+        openRouter: env.openRouter.enabled,
         meta: env.meta.enabled,
         imageProvider: env.image.provider,
       },

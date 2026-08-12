@@ -1,9 +1,7 @@
 import { env } from '../config/env.js';
 import { logger } from './logger.js';
 
-const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
-
-export const groqEnabled = () => env.groq.enabled;
+export const groqEnabled = () => env.openRouter.enabled;
 
 /* ---------------------------------------------------------------------------
  * Mock generator — produces believable marketing copy with no API key so the
@@ -38,6 +36,14 @@ function mockCaption(input, i = 0) {
   } ${pick(EMOJIS, i + 3)}\n\n${pick(CTAS, i)}`;
 }
 
+function mockAdCopy(input, i = 0) {
+  const product = input.product || input.topic || 'our latest offer';
+  const tone = input.tone ? ` ${input.tone}` : '';
+  return `Headline: ${pick(HOOKS, i)} ${product}\n\nBody: ${
+    input.details || `A${tone} choice for customers who want something fresh, reliable, and easy to love.`
+  }\n\nCTA: ${pick(CTAS, i)}`;
+}
+
 function mockHashtags(input, i = 0) {
   const base = (input.product || input.topic || 'shop')
     .toLowerCase()
@@ -70,17 +76,19 @@ async function mockStream(text, onToken, delay = 12) {
 }
 
 /* ---------------------------------------------------------------------------
- * Real Groq calls (OpenAI-compatible endpoint).
+ * Real OpenRouter calls (OpenAI-compatible endpoint).
  * ------------------------------------------------------------------------- */
 async function groqRequest(messages, { temperature = 0.9, stream = false, json = false } = {}) {
-  const res = await fetch(GROQ_URL, {
+  const res = await fetch(env.openRouter.apiUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${env.groq.apiKey}`,
+      Authorization: `Bearer ${env.openRouter.apiKey}`,
+      'HTTP-Referer': env.webBaseUrl,
+      'X-Title': 'Generative Marketing Studio',
     },
     body: JSON.stringify({
-      model: env.groq.model,
+      model: env.openRouter.model,
       messages,
       temperature,
       stream,
@@ -89,7 +97,7 @@ async function groqRequest(messages, { temperature = 0.9, stream = false, json =
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Groq ${res.status}: ${body.slice(0, 300)}`);
+    throw new Error(`OpenRouter ${res.status}: ${body.slice(0, 300)}`);
   }
   return res;
 }
@@ -156,7 +164,7 @@ export async function stream({ system, prompt, temperature, onToken, mockText } 
 export async function variations({ kind, input, count = 5 } = {}) {
   if (!groqEnabled()) {
     return Array.from({ length: count }, (_, i) =>
-      kind === 'hashtags' ? mockHashtags(input, i) : mockCaption(input, i)
+      kind === 'hashtags' ? mockHashtags(input, i) : kind === 'ad_copy' ? mockAdCopy(input, i) : mockCaption(input, i)
     );
   }
 
@@ -176,13 +184,15 @@ export async function variations({ kind, input, count = 5 } = {}) {
     const data = await res.json();
     const parsed = JSON.parse(data.choices?.[0]?.message?.content || '{}');
     const list = Array.isArray(parsed.variations) ? parsed.variations : [];
-    return list.length ? list.slice(0, count) : Array.from({ length: count }, (_, i) => mockCaption(input, i));
+    return list.length ? list.slice(0, count) : Array.from({ length: count }, (_, i) =>
+      kind === 'hashtags' ? mockHashtags(input, i) : kind === 'ad_copy' ? mockAdCopy(input, i) : mockCaption(input, i)
+    );
   } catch (err) {
-    logger.warn('Groq variations failed, using mock:', err.message);
+    logger.warn('OpenRouter variations failed, using mock:', err.message);
     return Array.from({ length: count }, (_, i) =>
-      kind === 'hashtags' ? mockHashtags(input, i) : mockCaption(input, i)
+      kind === 'hashtags' ? mockHashtags(input, i) : kind === 'ad_copy' ? mockAdCopy(input, i) : mockCaption(input, i)
     );
   }
 }
 
-export { mockCaption, mockHashtags };
+export { mockCaption, mockAdCopy, mockHashtags };

@@ -14,6 +14,15 @@ const COPY_SYSTEM =
   'You write scroll-stopping, culturally-aware copy in a warm, modern voice, mixing English with the ' +
   'occasional natural Bangla word where it fits. Keep it concise and platform-appropriate.';
 
+const copyInputSchema = z.object({
+  product: z.string().trim().max(1000).optional().default(''),
+  brandName: z.string().trim().max(120).optional(),
+  platform: z.string().trim().max(40).optional(),
+  tone: z.string().trim().max(40).optional(),
+  details: z.string().trim().max(2000).optional().default(''),
+  audience: z.string().trim().max(120).optional(),
+});
+
 function buildCopyPrompt(kind, input) {
   const ctx = [
     input.product && `Product/topic: ${input.product}`,
@@ -40,12 +49,7 @@ router.post(
   validate({
     body: z.object({
       kind: z.enum(['caption', 'ad_copy']).default('caption'),
-      product: z.string().max(200).optional(),
-      brandName: z.string().max(120).optional(),
-      platform: z.string().max(40).optional(),
-      tone: z.string().max(40).optional(),
-      details: z.string().max(1000).optional(),
-      audience: z.string().max(120).optional(),
+      ...copyInputSchema.shape,
     }),
   }),
   asyncHandler(async (req, res) => {
@@ -62,7 +66,10 @@ router.post(
         system: COPY_SYSTEM,
         prompt: buildCopyPrompt(kind, input),
         temperature: 0.9,
-        mockText: groq.mockCaption({ product: input.product, tone: input.tone }),
+        mockText:
+          kind === 'ad_copy'
+            ? groq.mockAdCopy({ product: input.product, tone: input.tone, details: input.details })
+            : groq.mockCaption({ product: input.product, tone: input.tone, details: input.details }),
         onToken: (t) => res.write(`data: ${JSON.stringify({ token: t })}\n\n`),
       });
       await prisma.copyGeneration.create({
@@ -85,7 +92,7 @@ router.post(
   validate({
     body: z.object({
       kind: z.enum(['caption', 'hashtags', 'ad_copy']).default('caption'),
-      input: z.object({}).passthrough().default({}),
+      input: copyInputSchema.passthrough().default({}),
       count: z.coerce.number().int().min(1).max(8).default(5),
     }),
   }),
