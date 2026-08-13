@@ -7,6 +7,7 @@ import { asyncHandler, ok, created } from '../../utils/http.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { ensureBrand, ensureOwned } from '../../utils/scope.js';
 import { objectId, optionalObjectId } from '../../utils/validators.js';
+import { generateFromPrompt, buildPromptFromBrief } from '../asset/asset.service.js';
 
 
 const router = Router();
@@ -76,6 +77,50 @@ router.post(
 );
 
 
+
+/** Resolve the brief + brand kit into a prompt and run cached text-to-image. */
+router.post(
+  '/:id/generate',
+  validate({
+    body: z.object({
+      size: z.enum(['square', 'portrait', 'story', 'landscape']).default('square'),
+      count: z.coerce.number().int().min(1).max(4).default(2),
+      force: z.boolean().default(false),
+    }),
+  }),
+  asyncHandler(async (req, res) => {
+    const brief = await prisma.creativeBrief.findFirst({
+      where: { id: req.params.id, tenantId: req.tenantId },
+      include: { brand: true, product: true },
+    });
+    if (!brief) throw ApiError.notFound('Brief not found');
+
+    const prompt = buildPromptFromBrief(brief, brief.brand);
+    await prisma.creativeBrief.update({
+      where: { id: brief.id },
+      data: { status: 'GENERATING', prompt },
+    });
+
+    try {
+      const result = await generateFromPrompt({
+        tenantId: req.tenantId,
+        prompt,
+        ...req.body,
+      });
+      await prisma.creativeBrief.update({
+        where: { id: brief.id },
+        data: { status: 'COMPLETED' },
+      });
+      return ok(res, result);
+    } catch (err) {
+      await prisma.creativeBrief.update({
+        where: { id: brief.id },
+        data: { status: 'DRAFT' },
+      });
+      throw err;
+    }
+  })
+);
 
 router.delete(
   '/:id',

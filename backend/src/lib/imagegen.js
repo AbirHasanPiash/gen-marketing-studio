@@ -4,7 +4,7 @@ import { logger } from './logger.js';
 /**
  * Provider-agnostic text-to-image. Default provider `pollinations` is KEYLESS,
  * so image generation works immediately; set IMAGE_PROVIDER + a key to switch
- * to Stability / Replicate / OpenAI. Every provider returns [{ url, seed }],
+ * to Stability / Replicate / OpenAI / Gemini. Every provider returns [{ url, seed }],
  * where `url` is directly renderable (remote URL or data URI).
  */
 
@@ -103,17 +103,61 @@ async function replicate(prompt, { width, height, count }) {
   return urls.map((url, i) => ({ url, seed: i, provider: 'replicate' }));
 }
 
-const PROVIDERS = { pollinations, mock, stability, openai, replicate };
+async function gemini(prompt, { count }) {
+  const out = [];
+  
+  // Gemini doesn't currently support native batch generation for images via REST in a single call,
+  // so we use a loop similar to the Stability AI implementation.
+  for (let i = 0; i < count; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${env.image.geminiKey}`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            responseModalities: ['IMAGE']
+          }
+        }),
+      }
+    );
+
+    if (!res.ok) throw new Error(`Gemini ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    
+    // Google's API returns the image inline as base64 inside the content part
+    const part = data.candidates?.[0]?.content?.parts?.[0];
+    if (part?.inlineData?.data) {
+      const mime = part.inlineData.mimeType || 'image/png';
+      out.push({
+        url: `data:${mime};base64,${part.inlineData.data}`,
+        seed: i,
+        provider: 'gemini',
+      });
+    } else {
+      throw new Error('Gemini API returned an unexpected payload structure.');
+    }
+  }
+  return out;
+}
+
+// 1. Added gemini to the PROVIDERS map
+const PROVIDERS = { pollinations, mock, stability, openai, replicate, gemini };
 
 export async function generateImages({ prompt, width = 1024, height = 1024, count = 1 } = {}) {
   const provider = env.image.provider;
   const opts = { width, height, count: Math.min(4, Math.max(1, count)) };
 
-  // Guard: paid providers need a key; otherwise degrade to pollinations.
+  // 2. Added safety guard for gemini
   const keyMissing =
     (provider === 'stability' && !env.image.stabilityKey) ||
     (provider === 'openai' && !env.image.openaiKey) ||
-    (provider === 'replicate' && !env.image.replicateToken);
+    (provider === 'replicate' && !env.image.replicateToken) ||
+    (provider === 'gemini' && !env.image.geminiKey);
 
   const fn = PROVIDERS[provider] && !keyMissing ? PROVIDERS[provider] : PROVIDERS.pollinations;
 

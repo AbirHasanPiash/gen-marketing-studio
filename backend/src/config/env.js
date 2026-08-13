@@ -62,6 +62,7 @@ export const env = {
     stabilityKey: process.env.STABILITY_API_KEY || '',
     replicateToken: process.env.REPLICATE_API_TOKEN || '',
     openaiKey: process.env.OPENAI_API_KEY || '',
+    geminiKey: process.env.GEMINI_API_KEY || '',
   },
 
   meta: {
