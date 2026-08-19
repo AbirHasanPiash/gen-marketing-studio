@@ -42,6 +42,7 @@ export const NAV_GROUPS = [
     items: [
       { to: '/brands', label: 'Brands', icon: Store },
       { to: '/products', label: 'Products', icon: Package },
+      { to: '/linkbio', label: 'Link-in-Bio', icon: Link2 },
     ],
   },
   {
