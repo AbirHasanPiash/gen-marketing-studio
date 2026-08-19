@@ -42,7 +42,13 @@ export const NAV_GROUPS = [
     items: [
       { to: '/brands', label: 'Brands', icon: Store },
       { to: '/products', label: 'Products', icon: Package },
-
+    ],
+  },
+  {
+    label: 'Distribute',
+    items: [
+      { to: '/publishing', label: 'Publishing', icon: Send },
+      { to: '/analytics', label: 'Analytics', icon: BarChart3 },
     ],
   },
   {

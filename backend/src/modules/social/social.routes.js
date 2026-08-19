@@ -22,12 +22,14 @@ const publicAccount = (a) => ({
   name: a.name,
   externalId: a.externalId,
   igBusinessId: a.igBusinessId,
+  tokenExpiresAt: a.tokenExpiresAt,
+  scopes: a.scopes,
   isActive: a.isActive,
   createdAt: a.createdAt,
   connected: true,
 });
 
-async function storeAccounts(tenantId, brandId, accounts) {
+async function storeAccounts(tenantId, brandId, accounts, tokenExpiresAt = null) {
   const stored = [];
   for (const a of accounts) {
     const existing = await prisma.socialAccount.findFirst({
@@ -40,6 +42,8 @@ async function storeAccounts(tenantId, brandId, accounts) {
       externalId: a.externalId,
       name: a.name,
       accessToken: encrypt(a.accessToken),
+      tokenExpiresAt,
+      scopes: meta.SCOPES,
       igBusinessId: a.igBusinessId,
       pageId: a.pageId,
       isActive: true,
@@ -95,9 +99,10 @@ router.get(
 
     try {
       const shortToken = await meta.exchangeCodeForToken(String(code), REDIRECT_URI);
-      const { token } = await meta.getLongLivedToken(shortToken);
+      const { token, expiresIn } = await meta.getLongLivedToken(shortToken);
       const accounts = await meta.getManagedAccounts(token);
-      await storeAccounts(payload.tenantId, payload.brandId, accounts);
+      const tokenExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
+      await storeAccounts(payload.tenantId, payload.brandId, accounts, tokenExpiresAt);
       logger.success(`Connected ${accounts.length} Meta account(s) for brand ${payload.brandId}`);
       return res.redirect(`${env.webBaseUrl}/settings/connections?connected=1`);
     } catch (err) {

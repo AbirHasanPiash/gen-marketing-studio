@@ -2,7 +2,7 @@ import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
-// import { startAgenda, stopAgenda } from './jobs/agenda.js';
+import { startAgenda, stopAgenda } from './jobs/agenda.js';
 
 async function main() {
   const app = createApp();
@@ -17,12 +17,13 @@ async function main() {
     process.exit(1);
   }
 
-  // // Background scheduler for publishing + analytics (non-fatal if it fails).
-  // try {
-  //   await startAgenda();
-  // } catch (err) {
-  //   logger.warn('Agenda failed to start; scheduled publishing is disabled:', err.message);
-  // }
+  // Run the scheduler in-process so scheduled publishing and webhook analytics
+  // continue to work when the API is deployed as a single service.
+  try {
+    await startAgenda();
+  } catch (err) {
+    logger.warn('Agenda failed to start; scheduled publishing is disabled:', err.message);
+  }
 
   const server = app.listen(env.port, () => {
     logger.success(`API listening on ${env.apiBaseUrl} (port ${env.port})`);
@@ -34,7 +35,7 @@ async function main() {
   const shutdown = async (signal) => {
     logger.warn(`${signal} received — shutting down...`);
     server.close();
-    // await stopAgenda().catch(() => {});
+    await stopAgenda().catch(() => {});
     await prisma.$disconnect().catch(() => {});
     process.exit(0);
   };
