@@ -39,18 +39,42 @@ export function getOAuthUrl(redirectUri, state) {
 async function graphGet(path, params = {}) {
   const url = new URL(graph(path));
   Object.entries(params).forEach(([k, v]) => v != null && url.searchParams.set(k, v));
-  const res = await fetch(url);
+  let res;
+  try {
+    res = await fetch(url);
+  } catch (err) {
+    err.retryable = true;
+    throw err;
+  }
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || `Graph GET ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data.error?.message || `Graph GET ${res.status}`);
+    err.status = res.status;
+    err.retryable = res.status === 429 || res.status >= 500;
+    err.permanent = !err.retryable;
+    throw err;
+  }
   return data;
 }
 
 async function graphPost(path, body = {}) {
   const url = new URL(graph(path));
   Object.entries(body).forEach(([k, v]) => v != null && url.searchParams.set(k, v));
-  const res = await fetch(url, { method: 'POST' });
+  let res;
+  try {
+    res = await fetch(url, { method: 'POST' });
+  } catch (err) {
+    err.retryable = true;
+    throw err;
+  }
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || `Graph POST ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data.error?.message || `Graph POST ${res.status}`);
+    err.status = res.status;
+    err.retryable = res.status === 429 || res.status >= 500;
+    err.permanent = !err.retryable;
+    throw err;
+  }
   return data;
 }
 

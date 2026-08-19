@@ -31,9 +31,10 @@ export const NAV_GROUPS = [
   {
     label: 'Create with AI',
     items: [
-      { to: '/briefs', label: 'Creative Briefs', icon: FileText },
       { to: '/copy', label: 'Copy Studio', icon: Sparkles },
-      // { to: '/assets', label: 'Asset Library', icon: Images },
+      { to: '/images', label: 'Image Studio', icon: ImagePlus },
+      { to: '/briefs', label: 'Creative Briefs', icon: FileText },
+      { to: '/assets', label: 'Asset Library', icon: Images },
     ],
   },
   {
@@ -41,7 +42,13 @@ export const NAV_GROUPS = [
     items: [
       { to: '/brands', label: 'Brands', icon: Store },
       { to: '/products', label: 'Products', icon: Package },
-
+    ],
+  },
+  {
+    label: 'Distribute',
+    items: [
+      { to: '/publishing', label: 'Publishing', icon: Send },
+      { to: '/analytics', label: 'Analytics', icon: BarChart3 },
     ],
   },
   {

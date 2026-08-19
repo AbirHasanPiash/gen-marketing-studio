@@ -72,7 +72,7 @@ export default function ImageStudioPage() {
             </CardBody>
           </Card>
 
-          {/* Prompt cache (Feature 7) */}
+          {/* Prompt cache */}
           <Card>
             <CardHeader title="Prompt cache" subtitle="High-performing, reusable prompts" action={<Database className="h-4 w-4 text-muted" />} />
             <CardBody className="space-y-2">

@@ -1,8 +1,9 @@
 import { prisma } from '../../lib/prisma.js';
 import { ApiError } from '../../utils/ApiError.js';
 
+
 /**
- * Post lifecycle state machine (Feature 4).
+ * Post lifecycle state machine
  *   DRAFT ─submit→ PENDING_REVIEW ─approve→ APPROVED ─schedule→ SCHEDULED
  *   PENDING_REVIEW ─reject→ REJECTED ─submit→ PENDING_REVIEW
  *   APPROVED/SCHEDULED ─publish→ PUBLISHING ─(worker)→ PUBLISHED | FAILED
@@ -29,7 +30,6 @@ async function notify(tenantId, userIds, payload) {
   });
 }
 
-/** Apply a lifecycle transition with role + state validation and audit logging. */
 export async function applyTransition({ post, action, actor, data = {} }) {
   const rule = TRANSITIONS[action];
   if (!rule) throw ApiError.badRequest(`Unknown action: ${action}`);
@@ -68,7 +68,6 @@ export async function applyTransition({ post, action, actor, data = {} }) {
     }),
   ]);
 
-  // Fan out notifications to the relevant people.
   if (action === 'submit') {
     const owners = await prisma.user.findMany({
       where: { tenantId: post.tenantId, role: 'OWNER', isActive: true },
@@ -92,9 +91,6 @@ export async function applyTransition({ post, action, actor, data = {} }) {
   return updated;
 }
 
-/* -------------------------------------------------------------------------- */
-/* Multi-platform adaptation (Feature 11)                                     */
-/* -------------------------------------------------------------------------- */
 
 function splitHashtags(text) {
   const tags = (text.match(/#[\p{L}0-9_]+/gu) || []);
@@ -102,11 +98,7 @@ function splitHashtags(text) {
   return { body, tags };
 }
 
-/**
- * Reshape one core idea into platform-native variants. Facebook favours a
- * conversational paragraph with a CTA + link; Instagram favours punchy lines
- * and a trailing hashtag block.
- */
+
 export function adaptForPlatforms(post) {
   const raw = post.body || '';
   const { body, tags } = splitHashtags(raw);
@@ -140,9 +132,6 @@ export function adaptForPlatforms(post) {
   return { FACEBOOK: facebook, INSTAGRAM: instagram };
 }
 
-/* -------------------------------------------------------------------------- */
-/* WhatsApp export (Feature 12)                                               */
-/* -------------------------------------------------------------------------- */
 
 export function toWhatsApp(post) {
   const { body, tags } = splitHashtags(post.body || '');
@@ -159,3 +148,4 @@ export function toWhatsApp(post) {
 
   return { text, waLink: `https://wa.me/?text=${encodeURIComponent(text)}` };
 }
+
