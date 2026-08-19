@@ -116,8 +116,12 @@ export default function PostEditorPage() {
   });
 
   const openWhatsApp = async () => {
-    const res = await get(`/posts/${id}/whatsapp`);
-    setWaModal(res);
+    try {
+      const res = await get(`/posts/${id}/whatsapp`);
+      setWaModal(res);
+    } catch (e) {
+      toast.error(e.message || 'Could not prepare WhatsApp message');
+    }
   };
 
   const addHashtag = (e) => {
@@ -295,14 +299,14 @@ export default function PostEditorPage() {
       </div>
 
       {/* WhatsApp export modal (Feature 12) */}
-      <Modal open={Boolean(waModal)} onClose={() => setWaModal(null)} title="Export to WhatsApp" size="md"
+      <Modal open={Boolean(waModal)} onClose={() => setWaModal(null)} title="Push to WhatsApp" size="md"
         footer={
           <>
             <Button variant="secondary" onClick={() => copyToClipboard(waModal?.text).then(() => toast.success('Copied for WhatsApp'))}><Copy className="h-4 w-4" /> Copy</Button>
             <a href={waModal?.waLink} target="_blank" rel="noreferrer"><Button variant="success"><MessageCircle className="h-4 w-4" /> Open WhatsApp</Button></a>
           </>
         }>
-        <p className="mb-2 text-sm text-muted">Formatted for WhatsApp Broadcast — bold titles, hashtags and a media link.</p>
+        <p className="mb-2 text-sm text-muted">Formatted for WhatsApp — copy it or open WhatsApp with the message ready.</p>
         <pre className="whitespace-pre-wrap rounded-xl bg-elevated p-4 text-sm text-fg font-sans">{waModal?.text}</pre>
       </Modal>
     </div>
@@ -348,7 +352,7 @@ function LifecycleActions({ status, isOwner, form, action, openWhatsApp }) {
       {status === 'FAILED' && isOwner && (
         <ActBtn variant="primary" onClick={() => run('retry')}><RefreshCw className="h-4 w-4" /> Retry publishing</ActBtn>
       )}
-      <ActBtn variant="secondary" onClick={openWhatsApp}><MessageCircle className="h-4 w-4" /> Export to WhatsApp</ActBtn>
+      <ActBtn variant="secondary" onClick={openWhatsApp}><MessageCircle className="h-4 w-4" /> Push to WhatsApp</ActBtn>
     </div>
   );
 }

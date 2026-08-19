@@ -7,7 +7,7 @@ import { asyncHandler, ok, created } from '../../utils/http.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { ensureBrand, ensureOwned } from '../../utils/scope.js';
 import { schedulePublishJob, cancelPublishJob } from '../../jobs/agenda.js';
-import { applyTransition } from './post.service.js';
+import { adaptForPlatforms, applyTransition, toWhatsApp } from './post.service.js';
 
 
 const router = Router();
@@ -113,6 +113,32 @@ router.get(
 
     
     return ok(res, { scheduled: scheduledPosts, unscheduled: unscheduledPosts });
+  })
+);
+
+
+router.get(
+  '/:id/whatsapp',
+  asyncHandler(async (req, res) => {
+    const post = await ensureOwned('post', req.tenantId, req.params.id);
+    return ok(res, toWhatsApp(post));
+  })
+);
+
+
+router.post(
+  '/:id/adapt',
+  asyncHandler(async (req, res) => {
+    const post = await ensureOwned('post', req.tenantId, req.params.id);
+    const platformCopy = adaptForPlatforms(post);
+
+    const updatedPost = await prisma.post.update({
+      where: { id: post.id },
+      data: { platformCopy },
+      include: listInclude,
+    });
+
+    return ok(res, updatedPost);
   })
 );
 
