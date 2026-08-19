@@ -93,7 +93,7 @@ router.delete(
   asyncHandler(async (req, res) => {
     await ensureOwned('qRCode', req.tenantId, req.params.id);
     await prisma.qRCode.delete({ where: { id: req.params.id } });
-    return ok(res, { deleted: true });
+    return ok(res,{ deleted: true });
   })
 );
 
