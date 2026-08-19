@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Link2, Plus, Trash2, GripVertical, Save, ExternalLink, Copy, Eye, EyeOff, ArrowUp, ArrowDown,
+  Link2, Plus, Trash2, Save, ExternalLink, Copy, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';

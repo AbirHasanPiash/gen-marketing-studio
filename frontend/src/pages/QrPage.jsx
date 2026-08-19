@@ -6,7 +6,7 @@ import { PageHeader } from '../components/shared/PageHeader';
 import { Card, CardBody, Button, Input, Field, Switch, Modal, EmptyState, Skeleton } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
 import { get, post, del } from '../lib/api';
-import { fmtDate, truncate } from '../lib/utils';
+import { truncate } from '../lib/utils';
 
 export default function QrPage() {
   const qc = useQueryClient();
