@@ -35,6 +35,9 @@ export const NAV_GROUPS = [
       { to: '/images', label: 'Image Studio', icon: ImagePlus },
       { to: '/briefs', label: 'Creative Briefs', icon: FileText },
       { to: '/assets', label: 'Asset Library', icon: Images },
+       { to: '/composite', label: 'Compositing', icon: Layers },
+      { to: '/video', label: 'Video Studio', icon: Clapperboard },
+
     ],
   },
   {

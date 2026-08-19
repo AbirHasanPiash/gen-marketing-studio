@@ -31,12 +31,18 @@ export default function VideoPage() {
   });
   const render = useMutation({
     mutationFn: (id) => post(`/videos/${id}/render`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['videos'] }); toast('Rendering started…', { icon: '🎬' }); },
+    onSuccess: (queued) => {
+      // Seat the RENDERING row straight away so refetchInterval kicks in.
+      qc.setQueryData(['videos', activeBrandId], (old) => old?.map((v) => (v.id === queued.id ? queued : v)));
+      qc.invalidateQueries({ queryKey: ['videos'] });
+      toast('Rendering started…', { icon: '🎬' });
+    },
     onError: (e) => toast.error(e.message),
   });
   const remove = useMutation({
     mutationFn: (id) => del(`/videos/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['videos'] }); toast.success('Deleted'); },
+    onError: (e) => toast.error(e.message),
   });
 
   return (
@@ -83,8 +89,9 @@ export default function VideoPage() {
                   <button onClick={() => remove.mutate(v.id)} className="text-muted hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
                 </div>
                 {v.status === 'FAILED' && v.error && <p className="mt-2 rounded-lg bg-amber-500/10 p-2 text-xs text-amber-600">{v.error}</p>}
+                {v.status === 'READY' && v.warning && <p className="mt-2 rounded-lg bg-amber-500/10 p-2 text-xs text-amber-600">{v.warning}</p>}
                 {v.status !== 'RENDERING' && (
-                  <Button size="sm" variant={v.status === 'READY' ? 'secondary' : 'primary'} className="mt-3 w-full" onClick={() => render.mutate(v.id)} loading={render.isPending && render.variables === v.id}>
+                  <Button size="sm" variant={v.status === 'READY' ? 'secondary' : 'primary'} className="mt-3 w-full" onClick={() => render.mutate(v.id)} disabled={render.isPending} loading={render.isPending && render.variables === v.id}>
                     <Play className="h-3.5 w-3.5" /> {v.status === 'READY' ? 'Re-render' : v.status === 'FAILED' ? 'Retry render' : 'Render reel'}
                   </Button>
                 )}
@@ -102,7 +109,7 @@ export default function VideoPage() {
       <Modal open={Boolean(preview)} onClose={() => setPreview(null)} title={preview?.title} size="md"
         footer={preview?.outputUrl && <a href={preview.outputUrl} target="_blank" rel="noreferrer" download><Button variant="secondary"><Download className="h-4 w-4" /> Download</Button></a>}>
         {preview?.outputUrl && (
-          <video src={preview.outputUrl} controls autoPlay loop className="mx-auto max-h-[70vh] rounded-xl" />
+          <video key={preview.outputUrl} src={preview.outputUrl} controls autoPlay loop className="mx-auto max-h-[70vh] rounded-xl" />
         )}
       </Modal>
     </div>

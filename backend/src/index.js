@@ -3,6 +3,7 @@ import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
 import { startAgenda, stopAgenda } from './jobs/agenda.js';
+import { resetStuckRenders } from './modules/video/video.service.js';
 
 async function main() {
   const app = createApp();
@@ -16,6 +17,10 @@ async function main() {
     logger.error(err.message);
     process.exit(1);
   }
+
+  // Video renders live in-process, so any left at RENDERING died with the last
+  // process — fail them so the UI stops polling and offers a retry.
+  await resetStuckRenders().catch((err) => logger.warn('Could not reset stuck renders:', err.message));
 
   // Run the scheduler in-process so scheduled publishing and webhook analytics
   // continue to work when the API is deployed as a single service.

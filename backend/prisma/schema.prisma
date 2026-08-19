@@ -605,6 +605,7 @@ model VideoProject {
   aspect     String      @default("9:16")
   status     VideoStatus @default(DRAFT)
   error      String?
+  warning    String?     // non-fatal note, e.g. captions skipped by this ffmpeg build
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
 

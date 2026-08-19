@@ -90,6 +90,33 @@ export function platformVariants(publicId, url) {
   }));
 }
 
+/**
+ * Burn a caption into a Cloudinary-hosted image with a delivery transformation.
+ * This is the caption path used when the local ffmpeg build has no `drawtext`
+ * filter (it needs libfreetype, which many distro/homebrew builds omit).
+ * Returns null when `url` isn't a plain Cloudinary delivery URL.
+ */
+export function captionedImageUrl({ url, text, width, height, fontSize }) {
+  const MARKER = '/image/upload/';
+  if (!url || !url.includes(MARKER) || !/^https?:\/\/res\.cloudinary\.com\//.test(url)) return null;
+
+  const fill = `c_fill,g_auto,w_${width},h_${height}`;
+  if (!text) return url.replace(MARKER, `${MARKER}${fill}/`);
+
+  // Commas and slashes must survive a second decode inside the URL component.
+  const safe = encodeURIComponent(text).replace(/%2C/g, '%252C').replace(/%2F/g, '%252F');
+  const caption = [
+    `l_text:Arial_${fontSize}_bold:${safe}`,
+    'co_white',
+    'b_rgb:000000B3',
+    'g_south',
+    `y_${Math.round(height / 16)}`,
+    'c_fit',
+    `w_${Math.round(width * 0.85)}`,
+  ].join(',');
+  return url.replace(MARKER, `${MARKER}${fill}/${caption}/`);
+}
+
 /** Cloudinary AI background removal (requires the add-on on paid tiers). */
 export function backgroundRemovedUrl(publicId, url) {
   if (!ensure() || !publicId) return url;

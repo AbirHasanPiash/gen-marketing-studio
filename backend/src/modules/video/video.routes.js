@@ -4,8 +4,10 @@ import { prisma } from '../../lib/prisma.js';
 import { validate } from '../../middleware/validate.js';
 import { authenticate } from '../../middleware/auth.js';
 import { asyncHandler, ok, created } from '../../utils/http.js';
+import { ApiError } from '../../utils/ApiError.js';
+import { logger } from '../../lib/logger.js';
 import { ensureOwned } from '../../utils/scope.js';
-import { renderVideo, ffmpegAvailable } from './video.service.js';
+import { renderVideo, ffmpegCapabilities, captionSupport, isRendering } from './video.service.js';
 
 const router = Router();
 router.use(authenticate);
@@ -20,7 +22,13 @@ const videoBody = z.object({
   aspect: z.enum(['9:16', '1:1', '16:9']).default('9:16'),
 });
 
-router.get('/status/ffmpeg', asyncHandler(async (_req, res) => ok(res, { available: await ffmpegAvailable() })));
+router.get(
+  '/status/ffmpeg',
+  asyncHandler(async (_req, res) => {
+    const caps = await ffmpegCapabilities({ refresh: true });
+    return ok(res, { available: caps.available, drawtext: caps.drawtext, captions: await captionSupport() });
+  })
+);
 
 router.get(
   '/',
@@ -57,8 +65,17 @@ router.post(
   '/:id/render',
   asyncHandler(async (req, res) => {
     const video = await ensureOwned('videoProject', req.tenantId, req.params.id);
-    renderVideo(video.id); // fire-and-forget background job
-    return ok(res, { ...video, status: 'RENDERING' });
+    if (video.status === 'RENDERING' || isRendering(video.id)) {
+      throw ApiError.conflict('This reel is already rendering');
+    }
+    // Persist RENDERING *before* replying: the client starts polling off the
+    // status it gets back, and the background job can't win that race.
+    const queued = await prisma.videoProject.update({
+      where: { id: video.id },
+      data: { status: 'RENDERING', error: null, warning: null },
+    });
+    renderVideo(video.id).catch((err) => logger.error(`Video ${video.id} render rejected:`, err));
+    return ok(res, queued);
   })
 );
 
