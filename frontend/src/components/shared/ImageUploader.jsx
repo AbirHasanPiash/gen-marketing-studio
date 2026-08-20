@@ -3,7 +3,16 @@ import { UploadCloud, X, Loader2, Link as LinkIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { post } from '../../lib/api';
 import { fileToDataUrl, cn } from '../../lib/utils';
-import { Button } from '../ui';
+import { Button, Input, Modal } from '../ui';
+
+const isUsableUrl = (value) => {
+  try {
+    const { protocol } = new URL(value);
+    return protocol === 'http:' || protocol === 'https:' || protocol === 'data:';
+  } catch {
+    return false;
+  }
+};
 
 /**
  * Image picker with drag-drop + URL entry. Uploads to Cloudinary via the
@@ -13,6 +22,9 @@ export function ImageUploader({ value, onChange, folder = 'uploads', aspect = 'a
   const inputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [urlOpen, setUrlOpen] = useState(false);
+  const [urlDraft, setUrlDraft] = useState('');
+  const [urlError, setUrlError] = useState('');
 
   const handleFile = async (file) => {
     if (!file || !file.type.startsWith('image/')) return toast.error('Please choose an image file');
@@ -39,10 +51,51 @@ export function ImageUploader({ value, onChange, folder = 'uploads', aspect = 'a
     handleFile(e.dataTransfer.files?.[0]);
   };
 
-  const addByUrl = () => {
-    const url = window.prompt('Paste an image URL');
-    if (url) onChange(url);
+  const openUrlDialog = () => {
+    setUrlDraft('');
+    setUrlError('');
+    setUrlOpen(true);
   };
+
+  const submitUrl = () => {
+    const url = urlDraft.trim();
+    if (!isUsableUrl(url)) {
+      setUrlError('Enter a full image URL starting with http:// or https://');
+      return;
+    }
+    onChange(url);
+    setUrlOpen(false);
+  };
+
+  const urlDialog = (
+    <Modal
+      open={urlOpen}
+      onClose={() => setUrlOpen(false)}
+      title="Use an image URL"
+      subtitle="Paste a direct link to a PNG, JPG or WEBP file."
+      size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => setUrlOpen(false)}>Cancel</Button>
+          <Button onClick={submitUrl} disabled={!urlDraft.trim()}>Use image</Button>
+        </>
+      }
+    >
+      <Input
+        autoFocus
+        value={urlDraft}
+        onChange={(e) => { setUrlDraft(e.target.value); setUrlError(''); }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            submitUrl();
+          }
+        }}
+        placeholder="https://example.com/product.png"
+      />
+      {urlError && <p className="mt-2 text-xs text-red-500">{urlError}</p>}
+    </Modal>
+  );
 
   if (value) {
     return (
@@ -65,50 +118,55 @@ export function ImageUploader({ value, onChange, folder = 'uploads', aspect = 'a
   }
 
   return (
-    <div
-      onClick={() => inputRef.current?.click()}
-      onDragOver={(e) => {
-        e.preventDefault();
-        setDragging(true);
-      }}
-      onDragLeave={() => setDragging(false)}
-      onDrop={onDrop}
-      className={cn(
-        'flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition',
-        aspect,
-        dragging ? 'border-brand-500 bg-brand-500/5' : 'border-border hover:border-brand-500/60 hover:bg-elevated',
-        className
-      )}
-    >
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => handleFile(e.target.files?.[0])}
-      />
-      {loading ? (
-        <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
-      ) : (
-        <>
-          <UploadCloud className="h-7 w-7 text-muted" />
-          <p className="mt-2 text-sm font-medium text-fg">Drop image or click to upload</p>
-          <p className="text-xs text-muted">PNG, JPG, WEBP</p>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="mt-2"
-            onClick={(e) => {
-              e.stopPropagation();
-              addByUrl();
-            }}
-          >
-            <LinkIcon className="h-3.5 w-3.5" /> Use URL
-          </Button>
-        </>
-      )}
-    </div>
+    /* The dialog is a sibling of the dropzone: React portals still bubble events
+       through the component tree, so nesting it would re-open the file picker. */
+    <>
+      <div
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+        className={cn(
+          'flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition',
+          aspect,
+          dragging ? 'border-brand-500 bg-brand-500/5' : 'border-border hover:border-brand-500/60 hover:bg-elevated',
+          className
+        )}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => handleFile(e.target.files?.[0])}
+        />
+        {loading ? (
+          <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
+        ) : (
+          <>
+            <UploadCloud className="h-7 w-7 text-muted" />
+            <p className="mt-2 text-sm font-medium text-fg">Drop image or click to upload</p>
+            <p className="text-xs text-muted">PNG, JPG, WEBP</p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                openUrlDialog();
+              }}
+            >
+              <LinkIcon className="h-3.5 w-3.5" /> Use URL
+            </Button>
+          </>
+        )}
+      </div>
+      {urlDialog}
+    </>
   );
 }
 

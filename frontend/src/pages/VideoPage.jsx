@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Clapperboard, Plus, Play, Loader2, Trash2, Music, AlertTriangle, Film, X, Download,
+  Clapperboard, Plus, Play, Loader2, Trash2, Pencil, AlertTriangle, Film, X, Download,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { ImageUploader } from '../components/shared/ImageUploader';
+import { AudioUploader } from '../components/shared/AudioUploader';
 import { Card, CardBody, Button, Input, Field, Select, Modal, StatusBadge, EmptyState, Skeleton } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
-import { get, post, del } from '../lib/api';
+import { get, post, patch, del } from '../lib/api';
 import { fmtDate, cn } from '../lib/utils';
 
 export default function VideoPage() {
   const qc = useQueryClient();
   const { activeBrandId } = useActiveBrand();
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [preview, setPreview] = useState(null);
 
   const { data: videos, isLoading } = useQuery({
@@ -27,6 +29,11 @@ export default function VideoPage() {
   const create = useMutation({
     mutationFn: (v) => post('/videos', { ...v, brandId: activeBrandId }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['videos'] }); setCreating(false); toast.success('Video project created'); },
+    onError: (e) => toast.error(e.message),
+  });
+  const update = useMutation({
+    mutationFn: ({ id, ...v }) => patch(`/videos/${id}`, v),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['videos'] }); setEditing(null); toast.success('Reel updated — re-render to apply'); },
     onError: (e) => toast.error(e.message),
   });
   const render = useMutation({
@@ -86,7 +93,10 @@ export default function VideoPage() {
                     <h3 className="font-medium text-fg truncate">{v.title}</h3>
                     <p className="text-xs text-muted">{v.aspect} · {v.durationS}s · {v.images?.length || 0} scenes</p>
                   </div>
-                  <button onClick={() => remove.mutate(v.id)} className="text-muted hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button onClick={() => setEditing(v)} title="Edit reel" className="text-muted hover:text-brand-500"><Pencil className="h-4 w-4" /></button>
+                    <button onClick={() => remove.mutate(v.id)} title="Delete reel" className="text-muted hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
+                  </div>
                 </div>
                 {v.status === 'FAILED' && v.error && <p className="mt-2 rounded-lg bg-amber-500/10 p-2 text-xs text-amber-600">{v.error}</p>}
                 {v.status === 'READY' && v.warning && <p className="mt-2 rounded-lg bg-amber-500/10 p-2 text-xs text-amber-600">{v.warning}</p>}
@@ -104,7 +114,14 @@ export default function VideoPage() {
           action={<Button onClick={() => setCreating(true)} disabled={!activeBrandId}><Plus className="h-4 w-4" /> New Reel</Button>} /></Card>
       )}
 
-      {creating && <VideoModal onClose={() => setCreating(false)} onSave={(v) => create.mutate(v)} saving={create.isPending} />}
+      {(creating || editing) && (
+        <VideoModal
+          project={editing}
+          onClose={() => { setCreating(false); setEditing(null); }}
+          onSave={(v) => (editing ? update.mutate({ id: editing.id, ...v }) : create.mutate(v))}
+          saving={create.isPending || update.isPending}
+        />
+      )}
 
       <Modal open={Boolean(preview)} onClose={() => setPreview(null)} title={preview?.title} size="md"
         footer={preview?.outputUrl && <a href={preview.outputUrl} target="_blank" rel="noreferrer" download><Button variant="secondary"><Download className="h-4 w-4" /> Download</Button></a>}>
@@ -116,9 +133,18 @@ export default function VideoPage() {
   );
 }
 
-function VideoModal({ onClose, onSave, saving }) {
-  const [form, setForm] = useState({ title: '', aspect: '9:16', durationS: 10, audioUrl: '' });
-  const [scenes, setScenes] = useState([{ image: '', caption: '' }]);
+function VideoModal({ project, onClose, onSave, saving }) {
+  const [form, setForm] = useState({
+    title: project?.title || '',
+    aspect: project?.aspect || '9:16',
+    durationS: project?.durationS || 10,
+    audioUrl: project?.audioUrl || '',
+  });
+  const [scenes, setScenes] = useState(
+    project?.images?.length
+      ? project.images.map((image, i) => ({ image, caption: project.captions?.[i] || '' }))
+      : [{ image: '', caption: '' }]
+  );
 
   const updateScene = (i, key, val) => setScenes((s) => s.map((sc, x) => (x === i ? { ...sc, [key]: val } : sc)));
   const addScene = () => scenes.length < 6 && setScenes([...scenes, { image: '', caption: '' }]);
@@ -132,13 +158,15 @@ function VideoModal({ onClose, onSave, saving }) {
   };
 
   return (
-    <Modal open onClose={onClose} title="New promo reel" size="xl"
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={submit} loading={saving} disabled={!form.title}>Create project</Button></>}>
+    <Modal open onClose={onClose} title={project ? 'Edit reel' : 'New promo reel'} size="xl"
+      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={submit} loading={saving} disabled={!form.title}>{project ? 'Save changes' : 'Create project'}</Button></>}>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="Title" className="sm:col-span-3"><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Eid Reel" /></Field>
         <Field label="Aspect"><Select value={form.aspect} onChange={(e) => setForm({ ...form, aspect: e.target.value })}><option value="9:16">9:16 Reel</option><option value="1:1">1:1 Square</option><option value="16:9">16:9 Wide</option></Select></Field>
         <Field label="Duration (s)"><Input type="number" min={5} max={30} value={form.durationS} onChange={(e) => setForm({ ...form, durationS: Number(e.target.value) })} /></Field>
-        <Field label="Audio URL" hint="optional"><Input icon={Music} value={form.audioUrl} onChange={(e) => setForm({ ...form, audioUrl: e.target.value })} placeholder="https://…mp3" /></Field>
+        <Field label="Soundtrack" hint="optional" className="sm:col-span-3">
+          <AudioUploader value={form.audioUrl} onChange={(url) => setForm({ ...form, audioUrl: url })} />
+        </Field>
       </div>
 
       <p className="label mt-5">Scenes (max 6)</p>

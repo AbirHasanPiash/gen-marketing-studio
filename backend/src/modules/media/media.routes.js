@@ -13,6 +13,8 @@ import {
   PLATFORM_SIZES,
 } from '../../lib/cloudinary.js';
 import { extractPalette } from '../../lib/vibrant.js';
+import { decodeDataUri, saveLocalUpload } from '../../lib/localUploads.js';
+import { ApiError } from '../../utils/ApiError.js';
 
 const router = Router();
 router.use(authenticate);
@@ -30,6 +32,47 @@ router.post(
       folder: req.body.folder ? `mkt_studio/${req.body.folder}` : 'mkt_studio',
     });
     return ok(res, result);
+  })
+);
+
+/** Audio track upload for the Video Studio (Feature 14). */
+const MAX_AUDIO_BYTES = 12 * 1024 * 1024;
+const AUDIO_EXT = {
+  'audio/mpeg': 'mp3',
+  'audio/mp3': 'mp3',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/ogg': 'ogg',
+  'audio/webm': 'webm',
+  'audio/aac': 'aac',
+  'audio/mp4': 'm4a',
+  'audio/x-m4a': 'm4a',
+};
+
+router.post(
+  '/upload-audio',
+  validate({ body: z.object({ source: z.string().min(1) }) }),
+  asyncHandler(async (req, res) => {
+    let mime;
+    let buffer;
+    try {
+      ({ mime, buffer } = decodeDataUri(req.body.source));
+    } catch {
+      throw ApiError.badRequest('Upload the audio file itself — a plain URL cannot be read here.');
+    }
+    if (!mime.startsWith('audio/')) throw ApiError.badRequest(`${mime} is not an audio file.`);
+    if (buffer.length > MAX_AUDIO_BYTES) {
+      throw ApiError.badRequest(`Audio is ${(buffer.length / 1e6).toFixed(1)} MB — the limit is ${MAX_AUDIO_BYTES / 1e6} MB.`);
+    }
+
+    // Cloudinary stores audio under its `video` resource type; `resource_type:
+    // auto` in uploadMedia already routes it there. Without keys we keep the
+    // file on disk instead of pushing a base64 blob into the database.
+    const up = await uploadMedia(req.body.source, { folder: 'mkt_studio/audio' });
+    if (!up.mock) return ok(res, { url: up.url, publicId: up.publicId, bytes: up.bytes ?? buffer.length, mock: false });
+
+    const local = saveLocalUpload(buffer, AUDIO_EXT[mime] || 'mp3');
+    return ok(res, { url: local.url, publicId: null, bytes: local.bytes, mock: true });
   })
 );
 

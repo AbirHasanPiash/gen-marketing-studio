@@ -86,7 +86,7 @@ export async function resetStuckRenders() {
   return count;
 }
 
-async function fetchToFile(url, dest) {
+async function fetchToFile(url, dest, { expectMedia = false } = {}) {
   if (url.startsWith('data:')) {
     const comma = url.indexOf(',');
     const body = url.slice(comma + 1);
@@ -95,7 +95,13 @@ async function fetchToFile(url, dest) {
     return dest;
   }
   const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-  if (!res.ok) throw new Error(`Fetch failed ${res.status} for ${url}`);
+  if (!res.ok) throw new Error(`the link returned HTTP ${res.status}`);
+  const type = (res.headers.get('content-type') || '').split(';')[0].trim();
+  // The usual mistake is pasting the page a track lives on rather than the file
+  // itself; ffmpeg would then choke on a lump of HTML with a cryptic message.
+  if (expectMedia && /^(text\/|application\/(json|xml|xhtml))/.test(type)) {
+    throw new Error(`the link returned a web page (${type}), not a media file`);
+  }
   fs.writeFileSync(dest, Buffer.from(await res.arrayBuffer()));
   return dest;
 }
@@ -189,10 +195,12 @@ async function runRender(projectId) {
   const captions = project.captions || [];
   const hasCaptions = images.some((_, i) => captions[i]);
   const strategy = await captionSupport();
-  const warning =
-    hasCaptions && strategy === 'none'
-      ? 'Captions were skipped: this ffmpeg build has no `drawtext` filter (it needs libfreetype) and Cloudinary is not configured.'
-      : null;
+  const warnings = [];
+  if (hasCaptions && strategy === 'none') {
+    warnings.push(
+      'Captions were skipped: this ffmpeg build has no `drawtext` filter (it needs libfreetype) and Cloudinary is not configured.'
+    );
+  }
 
   // Split the requested runtime evenly instead of rounding each scene to whole
   // seconds, which used to turn a 10s reel into a 9s one.
@@ -218,8 +226,11 @@ async function runRender(projectId) {
     }
     let audioFile = null;
     if (project.audioUrl) {
-      audioFile = await fetchToFile(project.audioUrl, path.join(work, 'audio.mp3')).catch((err) => {
+      audioFile = await fetchToFile(project.audioUrl, path.join(work, 'audio'), { expectMedia: true }).catch((err) => {
+        // A missing soundtrack shouldn't lose the reel, but silently dropping it
+        // left no trace anywhere the user could see — surface it on the project.
         logger.warn(`Video ${projectId}: audio fetch failed (${err.message}), rendering silent`);
+        warnings.push(`The reel rendered without audio — ${err.message}. Upload the track instead of linking to it.`);
         return null;
       });
     }
@@ -287,7 +298,7 @@ async function runRender(projectId) {
 
     await prisma.videoProject.update({
       where: { id: projectId },
-      data: { status: 'READY', outputUrl, error: null, warning },
+      data: { status: 'READY', outputUrl, error: null, warning: warnings.join(' ') || null },
     });
     logger.success(`Video ${projectId} rendered → ${outputUrl}`);
   } catch (err) {

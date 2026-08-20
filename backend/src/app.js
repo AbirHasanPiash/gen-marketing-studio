@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit';
 import { env } from './config/env.js';
 import { notFound, errorHandler } from './middleware/error.js';
 import { RENDER_DIR } from './modules/video/video.service.js';
+import { UPLOAD_DIR } from './lib/localUploads.js';
 
 import authRoutes from './modules/auth/auth.routes.js';
 import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
@@ -50,8 +51,9 @@ export function createApp() {
   app.use(cookieParser());
   if (!env.isProd) app.use(morgan('dev'));
 
-  // Rendered videos (served locally when Cloudinary isn't configured).
+  // Rendered videos and uploads (served locally when Cloudinary isn't configured).
   app.use('/media/renders', express.static(RENDER_DIR));
+  app.use('/media/uploads', express.static(UPLOAD_DIR));
 
   app.get('/api/health', (_req, res) =>
     res.json({

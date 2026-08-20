@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Layers, Save, Type, Image as ImageIcon, Sparkles, Loader2, Eraser } from 'lucide-react';
+import { Layers, Save, Type, Image as ImageIcon, Eraser, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { ImageUploader } from '../components/shared/ImageUploader';
 import { Card, CardHeader, CardBody, Button, Input, Field, Select } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
 import { post } from '../lib/api';
-import { cn } from '../lib/utils';
 
 const loadImage = (url) =>
   new Promise((resolve, reject) => {
@@ -18,6 +17,26 @@ const loadImage = (url) =>
     img.src = url;
   });
 
+/**
+ * Cloudinary derives `e_background_removal` asynchronously — the first requests
+ * for a fresh cutout come back 423 while it renders. Poll until the PNG really
+ * exists, otherwise the canvas just drops the layer with no explanation.
+ */
+const waitForCutout = async (url, { attempts = 8, delayMs = 1500 } = {}) => {
+  for (let i = 0; i < attempts; i += 1) {
+    if (i) await new Promise((r) => { setTimeout(r, delayMs); });
+    let res;
+    try {
+      res = await fetch(url, { cache: 'reload' });
+    } catch {
+      continue; // transient network blip → retry
+    }
+    if (res.ok) return url;
+    if (res.status !== 423 && res.status !== 404) throw new Error(`Background removal failed (${res.status})`);
+  }
+  throw new Error('Cutout is still rendering — try Remove background again in a moment.');
+};
+
 const POSITIONS = { bottom: 'Bottom', center: 'Center', top: 'Top' };
 
 export default function CompositePage() {
@@ -25,7 +44,11 @@ export default function CompositePage() {
   const { activeBrandId } = useActiveBrand();
   const canvasRef = useRef(null);
   const [bg, setBg] = useState('');
-  const [product, setProduct] = useState('');
+  const [bgId, setBgId] = useState(null);
+  const [product, setProduct] = useState('');          // the layer actually composited
+  const [productOriginal, setProductOriginal] = useState('');
+  const [productId, setProductId] = useState(null);
+  const [cutout, setCutout] = useState('');            // background-removed PNG, once derived
   const [text, setText] = useState('New Arrival');
   const [textColor, setTextColor] = useState('#ffffff');
   const [accent, setAccent] = useState('#7c3aed');
@@ -33,6 +56,7 @@ export default function CompositePage() {
   const [pos, setPos] = useState('bottom');
   const [tainted, setTainted] = useState(false);
 
+  const usingCutout = Boolean(cutout) && product === cutout;
   const SIZE = 1080;
 
   useEffect(() => {
@@ -55,7 +79,8 @@ export default function CompositePage() {
           ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
         } catch { /* ignore */ }
       }
-      // Product cutout
+      // Product cutout — a transparent PNG keeps its alpha here, so the shadow
+      // below traces the product silhouette instead of a rectangle.
       if (product) {
         try {
           const img = await loadImage(product);
@@ -109,6 +134,37 @@ export default function CompositePage() {
     return () => { cancelled = true; };
   }, [bg, product, text, textColor, accent, fontSize, pos]);
 
+  const pickProduct = (url, meta) => {
+    setProduct(url);
+    setProductOriginal(url);
+    setProductId(meta?.publicId ?? null);
+    setCutout('');
+  };
+
+  /** Feature 5 background removal, fed straight into the product layer. */
+  const removeBg = useMutation({
+    mutationFn: async () => {
+      if (cutout) return cutout; // already derived — just swap it back in
+      let publicId = productId;
+      if (!publicId) {
+        // Pasted URLs never went through Cloudinary; e_background_removal needs
+        // a public id, so ingest it first.
+        const up = await post('/media/upload', { source: productOriginal, folder: 'composite' });
+        publicId = up.publicId;
+        setProductId(publicId);
+      }
+      const res = await post('/media/remove-bg', { publicId, url: productOriginal });
+      if (!res.applied) throw new Error('Background removal needs Cloudinary credentials on the server.');
+      return waitForCutout(res.url);
+    },
+    onSuccess: (url) => {
+      setCutout(url);
+      setProduct(url);
+      toast.success('Background removed — compositing the cutout');
+    },
+    onError: (e) => toast.error(e.message || 'Background removal failed'),
+  });
+
   const saveComposite = useMutation({
     mutationFn: async () => {
       let dataUrl;
@@ -116,7 +172,16 @@ export default function CompositePage() {
         dataUrl = canvasRef.current.toDataURL('image/png');
       } catch {
         // Canvas tainted by cross-origin images → composite server-side instead.
-        const res = await post('/media/composite', { backgroundUrl: bg, productUrl: product, text, textColor: textColor.replace('#', '') });
+        // When the cutout is active we pass its URL (not the original public id)
+        // so Cloudinary re-ingests the transparent PNG as the overlay layer.
+        const res = await post('/media/composite', {
+          backgroundPublicId: bgId,
+          backgroundUrl: bg,
+          productPublicId: usingCutout ? null : productId,
+          productUrl: product,
+          text,
+          textColor: textColor.replace('#', ''),
+        });
         if (!res.url) throw new Error('Compositing needs Cloudinary for these images. Upload images instead of using external URLs.');
         return post('/assets', { url: res.url, source: 'COMPOSITED', brandId: activeBrandId, prompt: text });
       }
@@ -137,9 +202,31 @@ export default function CompositePage() {
           <Card>
             <CardHeader title={<span className="flex items-center gap-2"><ImageIcon className="h-4 w-4" /> Layers</span>} />
             <CardBody className="space-y-4">
-              <Field label="Background"><ImageUploader value={bg} onChange={setBg} folder="composite" aspect="aspect-video" /></Field>
-              <Field label="Product (PNG cutout works best)"><ImageUploader value={product} onChange={setProduct} folder="composite" aspect="aspect-video" /></Field>
-              <p className="text-xs text-muted">Tip: generate a background in the Image Studio, then drop a product PNG on top.</p>
+              <Field label="Background">
+                <ImageUploader value={bg} onChange={(url, meta) => { setBg(url); setBgId(meta?.publicId ?? null); }} folder="composite" aspect="aspect-video" />
+              </Field>
+              <Field label="Product (PNG cutout works best)">
+                <ImageUploader value={product} onChange={pickProduct} folder="composite" aspect="aspect-video" />
+              </Field>
+              {productOriginal && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="subtle"
+                    onClick={() => removeBg.mutate()}
+                    loading={removeBg.isPending}
+                    disabled={usingCutout}
+                  >
+                    <Eraser className="h-3.5 w-3.5" /> {usingCutout ? 'Background removed' : 'Remove background'}
+                  </Button>
+                  {cutout && (
+                    <Button size="sm" variant="ghost" onClick={() => setProduct(usingCutout ? productOriginal : cutout)}>
+                      <RotateCcw className="h-3.5 w-3.5" /> {usingCutout ? 'Use original' : 'Use cutout'}
+                    </Button>
+                  )}
+                </div>
+              )}
+              <p className="text-xs text-muted">Tip: generate a background in the Image Studio, drop the product photo on top, then hit Remove background — the transparent cutout is what gets composited and shadowed.</p>
             </CardBody>
           </Card>
 

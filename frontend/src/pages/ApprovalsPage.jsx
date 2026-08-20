@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CheckSquare, CheckCircle2, XCircle, Clock, CalendarCheck, Send, FileImage } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
+import { RejectDialog } from '../components/shared/RejectDialog';
 import { Card, Button, StatusBadge, PlatformDot, Avatar, EmptyState, Skeleton } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
 import { useAuth } from '../store/auth';
@@ -20,6 +22,7 @@ export default function ApprovalsPage() {
   const qc = useQueryClient();
   const { activeBrandId } = useActiveBrand();
   const isOwner = useAuth((s) => s.user?.role === 'OWNER');
+  const [rejectingId, setRejectingId] = useState(null);
 
   const { data: posts, isLoading } = useQuery({
     queryKey: ['approvals', activeBrandId],
@@ -90,10 +93,7 @@ export default function ApprovalsPage() {
                                 <CheckCircle2 className="h-4 w-4" /> Approve
                               </Button>
                               <Button size="sm" variant="danger"
-                                onClick={() => {
-                                  const reason = window.prompt('Reason for requesting changes?');
-                                  if (reason !== null) act.mutate({ id: p.id, verb: 'reject', payload: { reason } });
-                                }}>
+                                onClick={() => setRejectingId(p.id)}>
                                 <XCircle className="h-4 w-4" />
                               </Button>
                             </div>
@@ -113,6 +113,16 @@ export default function ApprovalsPage() {
           })}
         </div>
       )}
+
+      <RejectDialog
+        open={Boolean(rejectingId)}
+        onClose={() => setRejectingId(null)}
+        loading={act.isPending}
+        onSubmit={(reason) => {
+          act.mutate({ id: rejectingId, verb: 'reject', payload: { reason } });
+          setRejectingId(null);
+        }}
+      />
 
       {posts && posts.length === 0 && (
         <Card><EmptyState icon={FileImage} title="No posts yet" description="Create and submit posts to see them flow through the approval pipeline."

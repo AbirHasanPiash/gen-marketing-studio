@@ -8,6 +8,7 @@ import {
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { ImageUploader } from '../components/shared/ImageUploader';
+import { RejectDialog } from '../components/shared/RejectDialog';
 import {
   Card, CardHeader, CardBody, Button, Input, Textarea, Field, Select, StatusBadge, PlatformDot,
   Modal, UnderlineTabs, Avatar, Spinner,
@@ -318,14 +319,15 @@ function ActBtn({ children, ...props }) {
 }
 
 function LifecycleActions({ status, isOwner, form, action, openWhatsApp }) {
+  const [rejectOpen, setRejectOpen] = useState(false);
   const run = (verb, payload) => action.mutate({ verb, payload });
   const scheduleNow = () => {
     if (!form.scheduledAt) return toast.error('Pick a schedule date first');
     run('schedule', { scheduledAt: new Date(form.scheduledAt).toISOString() });
   };
-  const reject = () => {
-    const reason = window.prompt('Reason for requesting changes?');
-    if (reason !== null) run('reject', { reason });
+  const reject = (reason) => {
+    setRejectOpen(false);
+    run('reject', { reason });
   };
 
   return (
@@ -336,7 +338,7 @@ function LifecycleActions({ status, isOwner, form, action, openWhatsApp }) {
       {status === 'PENDING_REVIEW' && isOwner && (
         <>
           <ActBtn variant="success" onClick={() => run('approve')} loading={action.isPending}><CheckCircle2 className="h-4 w-4" /> Approve</ActBtn>
-          <ActBtn variant="danger" onClick={reject}><XCircle className="h-4 w-4" /> Request changes</ActBtn>
+          <ActBtn variant="danger" onClick={() => setRejectOpen(true)}><XCircle className="h-4 w-4" /> Request changes</ActBtn>
         </>
       )}
       {status === 'PENDING_REVIEW' && !isOwner && (
@@ -353,6 +355,7 @@ function LifecycleActions({ status, isOwner, form, action, openWhatsApp }) {
         <ActBtn variant="primary" onClick={() => run('retry')}><RefreshCw className="h-4 w-4" /> Retry publishing</ActBtn>
       )}
       <ActBtn variant="secondary" onClick={openWhatsApp}><MessageCircle className="h-4 w-4" /> Push to WhatsApp</ActBtn>
+      <RejectDialog open={rejectOpen} onClose={() => setRejectOpen(false)} onSubmit={reject} loading={action.isPending} />
     </div>
   );
 }
