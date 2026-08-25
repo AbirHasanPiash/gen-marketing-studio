@@ -11,6 +11,7 @@ import { fmtDate } from '../lib/utils';
 export default function TeamPage() {
   const qc = useQueryClient();
   const me = useAuth((s) => s.user);
+  const isOwner = me?.role === 'OWNER';
   const [inviting, setInviting] = useState(false);
 
   const { data: users, isLoading } = useQuery({ queryKey: ['team'], queryFn: () => get('/auth/users') });
@@ -29,7 +30,7 @@ export default function TeamPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Team" description="Owners approve content; creators draft and submit it." icon={Users}
-        actions={<Button onClick={() => setInviting(true)}><UserPlus className="h-4 w-4" /> Add member</Button>} />
+        actions={isOwner && <Button onClick={() => setInviting(true)}><UserPlus className="h-4 w-4" /> Add member</Button>} />
 
       <Card>
         <CardBody className="p-0">
@@ -49,7 +50,7 @@ export default function TeamPage() {
                   <Badge className={u.role === 'OWNER' ? 'bg-brand-500/12 text-brand-500' : 'bg-blue-500/12 text-blue-500'}>
                     {u.role === 'OWNER' ? <Crown className="h-3 w-3" /> : <Shield className="h-3 w-3" />} {u.role.toLowerCase()}
                   </Badge>
-                  {u.id !== me?.id && (
+                  {isOwner && u.id !== me?.id && (
                     <div className="flex items-center gap-3">
                       <Select value={u.role} onChange={(e) => update.mutate({ id: u.id, role: e.target.value })} className="h-8 w-28 py-1 text-xs">
                         <option value="OWNER">Owner</option>
@@ -62,7 +63,7 @@ export default function TeamPage() {
               ))}
             </div>
           ) : (
-            <EmptyState icon={Users} title="No team members" description="Invite creators to collaborate on content." />
+            <EmptyState icon={Users} title="No team members" description={isOwner ? 'Invite creators to collaborate on content.' : 'Your workspace has no other members yet.'} />
           )}
         </CardBody>
       </Card>

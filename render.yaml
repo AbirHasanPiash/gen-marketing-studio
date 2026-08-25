@@ -23,23 +23,38 @@ services:
       # --- Fill these in the Render dashboard (they hold secrets / URLs) ---
       - key: DATABASE_URL # mongodb+srv://...  (Atlas connection string)
         sync: false
-      - key: TOKEN_ENCRYPTION_KEY # 32-byte hex — see README
-        sync: false
+      - key: TOKEN_ENCRYPTION_KEY # 32-byte hex — `openssl rand -hex 32`. Set once, never rotate:
+        sync: false #                it decrypts stored Meta tokens.
       - key: API_BASE_URL # https://mkt-studio-api.onrender.com
         sync: false
-      - key: WEB_BASE_URL # https://your-frontend.vercel.app
+      - key: WEB_BASE_URL # https://your-frontend.vercel.app  (also the CORS allow-list)
+        sync: false
+      # --- CORS (optional) ---
+      # Preview deploys of the WEB_BASE_URL Vercel project are allowed automatically.
+      - key: VERCEL_PROJECT_NAME # only needed when production is on a custom domain
+        sync: false
+      - key: CORS_EXTRA_ORIGINS # comma-separated extra origins, e.g. a staging frontend
         sync: false
       # --- Optional integrations (leave blank to use mock/keyless modes) ---
-      - key: CLOUDINARY_CLOUD_NAME
-        sync: false
+      - key: CLOUDINARY_CLOUD_NAME # strongly recommended in production: without it
+        sync: false #                uploads and renders land on the ephemeral disk
       - key: CLOUDINARY_API_KEY
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
-      - key: GROQ_API_KEY
+      # AI copy (OpenRouter). Blank → the built-in mock copywriter.
+      - key: OPENROUTER_API_KEY
         sync: false
+      - key: OPENROUTER_API_URL # blank → https://openrouter.ai/api/v1/chat/completions
+        sync: false
+      - key: OPENROUTER_MODEL # blank → nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+        sync: false
+      # Image generation. Blank → `pollinations`, which is keyless and needs no setup.
+      # Other options: gemini | stability | openai | replicate (each needs its key below).
       - key: IMAGE_PROVIDER
-        value: pollinations
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
       - key: META_APP_ID
         sync: false
       - key: META_APP_SECRET

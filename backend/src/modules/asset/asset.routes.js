@@ -29,7 +29,7 @@ const assetBody = z.object({
 
 // --- Text-to-image generation (Feature 7) ----------------------------------
 
-router.get('/sizes', authenticate, (_req, res) => ok(res, SIZE_PRESETS));
+router.get('/sizes', (_req, res) => ok(res, SIZE_PRESETS));
 
 router.post(
   '/generate',

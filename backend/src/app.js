@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
 
 import { env } from './config/env.js';
+import { corsOptions } from './config/cors.js';
 import { notFound, errorHandler } from './middleware/error.js';
 import { RENDER_DIR } from './modules/video/video.service.js';
 import { UPLOAD_DIR } from './lib/localUploads.js';
@@ -35,19 +36,16 @@ export function createApp() {
   app.set('trust proxy', 1);
 
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-  app.use(
-    cors({
-      origin: [env.webBaseUrl, 'http://localhost:5173', 'http://localhost:3000'],
-      credentials: true,
-    })
-  );
+  app.use(cors(corsOptions()));
+  // Uploads arrive as base64 data URIs, which inflate by ~4/3 — a 12 MB audio
+  // file is ~16 MB on the wire, so the limit has to sit above the file cap.
   app.use(express.json({
-    limit: '15mb',
+    limit: '25mb',
     verify: (req, _res, buffer) => {
       if (req.originalUrl.startsWith('/api/webhooks/meta')) req.rawBody = Buffer.from(buffer);
     },
   }));
-  app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '25mb' }));
   app.use(cookieParser());
   if (!env.isProd) app.use(morgan('dev'));
 

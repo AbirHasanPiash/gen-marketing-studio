@@ -86,7 +86,7 @@ router.get(
   '/meta/callback',
   asyncHandler(async (req, res) => {
     const { code, state } = req.query;
-    const fail = (msg) => res.redirect(`${env.webBaseUrl}/settings/connections?error=${encodeURIComponent(msg)}`);
+    const fail = (msg) => res.redirect(`${env.webBaseUrl}/connections?error=${encodeURIComponent(msg)}`);
     if (!code || !state) return fail('Missing code/state');
 
     let payload;
@@ -104,7 +104,7 @@ router.get(
       const tokenExpiresAt = expiresIn ? new Date(Date.now() + expiresIn * 1000) : null;
       await storeAccounts(payload.tenantId, payload.brandId, accounts, tokenExpiresAt);
       logger.success(`Connected ${accounts.length} Meta account(s) for brand ${payload.brandId}`);
-      return res.redirect(`${env.webBaseUrl}/settings/connections?connected=1`);
+      return res.redirect(`${env.webBaseUrl}/connections?connected=1`);
     } catch (err) {
       logger.error('Meta OAuth failed:', err.message);
       return fail(err.message);

@@ -99,10 +99,14 @@ router.get(
       }),
 
       
+      // Prisma stores an unset optional field by omitting it, and on MongoDB
+      // `scheduledAt: null` does NOT match a missing key — so a post created
+      // without the field at all (any client that omits it, e.g. the campaign
+      // suggester's draft) was invisible in the backlog. Match both shapes.
       prisma.post.findMany({
         where: {
           ...base,
-          scheduledAt: null,
+          OR: [{ scheduledAt: null }, { scheduledAt: { isSet: false } }],
           status: { in: ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED'] },
         },
         include: listInclude,
@@ -264,6 +268,12 @@ router.patch(
   })
 );
 
+/**
+ * Lifecycle transitions (submit / approve / reject / schedule / unschedule /
+ * publish / archive). The state machine itself stays pure — the publish queue
+ * is synced here, because a status change that isn't mirrored in Agenda leaves
+ * a post either stuck at PUBLISHING or "scheduled" but never sent.
+ */
 router.post(
   '/:id/:action',
   asyncHandler(async (req, res) => {
@@ -275,6 +285,16 @@ router.post(
       actor: req.user,
       data: req.body,
     });
+
+    if (updated.status === 'SCHEDULED') {
+      // Re-scheduling replaces any job already queued for this post.
+      await cancelPublishJob(post.id);
+      await schedulePublishJob(updated, updated.scheduledAt);
+    } else if (updated.status === 'PUBLISHING') {
+      await schedulePublishJob(updated); // no runAt → publish immediately
+    } else if (['unschedule', 'archive'].includes(req.params.action)) {
+      await cancelPublishJob(post.id);
+    }
 
     return ok(res, updated);
   })

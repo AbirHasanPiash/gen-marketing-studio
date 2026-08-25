@@ -105,6 +105,18 @@ export default function PostEditorPage() {
     onError: (e) => toast.error(e.message),
   });
 
+  // Retry isn't a lifecycle transition — it re-queues the publish job, so it
+  // goes to the publishing endpoint rather than /posts/:id/<action>.
+  const retry = useMutation({
+    mutationFn: () => post(`/publish/jobs/${id}/retry`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['post', id] });
+      qc.invalidateQueries({ queryKey: ['publish-jobs'] });
+      toast.success('Retry queued');
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const adapt = useMutation({
     mutationFn: () => post(`/posts/${id}/adapt`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['post', id] }); toast.success('Adapted for each platform'); },
@@ -251,7 +263,7 @@ export default function PostEditorPage() {
                     <p className="text-rose-500/80">{post_.rejectReason}</p>
                   </div>
                 )}
-                <LifecycleActions status={status} isOwner={isOwner} form={form} action={action} openWhatsApp={openWhatsApp} />
+                <LifecycleActions status={status} isOwner={isOwner} form={form} action={action} retry={retry} openWhatsApp={openWhatsApp} />
                 <button onClick={() => removeMut.mutate()} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-sm text-red-500 hover:bg-red-500/10">
                   <Trash2 className="h-4 w-4" /> Delete post
                 </button>
@@ -318,7 +330,7 @@ function ActBtn({ children, ...props }) {
   return <Button className="w-full justify-start" {...props}>{children}</Button>;
 }
 
-function LifecycleActions({ status, isOwner, form, action, openWhatsApp }) {
+function LifecycleActions({ status, isOwner, form, action, retry, openWhatsApp }) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const run = (verb, payload) => action.mutate({ verb, payload });
   const scheduleNow = () => {
@@ -352,7 +364,7 @@ function LifecycleActions({ status, isOwner, form, action, openWhatsApp }) {
         </>
       )}
       {status === 'FAILED' && isOwner && (
-        <ActBtn variant="primary" onClick={() => run('retry')}><RefreshCw className="h-4 w-4" /> Retry publishing</ActBtn>
+        <ActBtn variant="primary" onClick={() => retry.mutate()} loading={retry.isPending}><RefreshCw className="h-4 w-4" /> Retry publishing</ActBtn>
       )}
       <ActBtn variant="secondary" onClick={openWhatsApp}><MessageCircle className="h-4 w-4" /> Push to WhatsApp</ActBtn>
       <RejectDialog open={rejectOpen} onClose={() => setRejectOpen(false)} onSubmit={reject} loading={action.isPending} />

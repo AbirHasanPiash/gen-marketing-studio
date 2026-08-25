@@ -95,17 +95,30 @@ export async function startAgenda() {
   return agenda;
 }
 
-/** Schedule (or immediately queue) a post's publish job. */
+/**
+ * Schedule a post's publish job. Omit `runAt` (or pass a time in the past) to
+ * publish immediately — `agenda.now` skips the processEvery tick, and when the
+ * scheduler failed to start we run the job inline so "Publish now" still works.
+ */
 export async function schedulePublishJob(post, runAt) {
   const when = runAt ? new Date(runAt) : new Date();
+  const immediate = when.getTime() <= Date.now();
   const pj = await prisma.publishJob.create({
     data: { tenantId: post.tenantId, postId: post.id, runAt: when, status: 'QUEUED' },
   });
+
   if (!agenda) {
-    logger.warn('Agenda not started; publish job recorded but not scheduled.');
+    if (!immediate) {
+      logger.warn('Agenda not started; publish job recorded but not scheduled.');
+      return pj;
+    }
+    await handlePublish(post.id);
     return pj;
   }
-  const job = await agenda.schedule(when, 'publish-post', { postId: post.id });
+
+  const job = immediate
+    ? await agenda.now('publish-post', { postId: post.id })
+    : await agenda.schedule(when, 'publish-post', { postId: post.id });
   await prisma.publishJob.update({ where: { id: pj.id }, data: { agendaJobId: String(job.attrs._id) } });
   return pj;
 }
@@ -121,10 +134,21 @@ export async function cancelPublishJob(postId) {
 
 /** Manually retry a failed publish immediately (Feature 16 — UI button). */
 export async function retryPublishJob(postId) {
-  await prisma.publishJob.updateMany({
-    where: { postId, status: 'FAILED' },
-    data: { status: 'QUEUED', nextRetryAt: null },
+  const post = await prisma.post.findUnique({ where: { id: postId } });
+  if (!post) return;
+
+  const { count } = await prisma.publishJob.updateMany({
+    where: { postId, status: { in: ['FAILED', 'CANCELLED'] } },
+    data: { status: 'QUEUED', attempts: 0, nextRetryAt: null },
   });
+  // A post can reach FAILED without a job row (e.g. it was published before the
+  // queue existed); without one the retry would run untracked.
+  if (!count) {
+    await prisma.publishJob.create({
+      data: { tenantId: post.tenantId, postId, runAt: new Date(), status: 'QUEUED' },
+    });
+  }
+
   await prisma.post.update({ where: { id: postId }, data: { status: 'APPROVED' } }).catch(() => null);
   if (agenda) await agenda.now('publish-post', { postId });
   else await handlePublish(postId);

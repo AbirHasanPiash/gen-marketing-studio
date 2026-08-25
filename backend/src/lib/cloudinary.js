@@ -64,10 +64,17 @@ export async function uploadMedia(source, { folder = 'mkt_studio', publicId } = 
   };
 }
 
-export async function destroyMedia(publicId) {
+/**
+ * Delete an uploaded file. `resource_type` defaults to `image` in the SDK, so
+ * videos and audio (which `resource_type: 'auto'` files under `video`) have to
+ * name it explicitly or the delete silently reports success and does nothing.
+ */
+export async function destroyMedia(publicId, resourceType = 'image') {
   if (!publicId || !ensure()) return { ok: true, mock: true };
-  await cloudinary.uploader.destroy(publicId);
-  return { ok: true };
+  const res = await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+  // Cloudinary answers 200 with { result: 'not found' } for a miss — surface it
+  // rather than reporting a delete that never happened.
+  return { ok: res.result === 'ok', result: res.result };
 }
 
 /** Build resized variants for every platform placement from one public id. */

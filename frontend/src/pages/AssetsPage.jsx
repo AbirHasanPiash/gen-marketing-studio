@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Images, Search, Heart, Trash2, Download, Copy, Layers, Sparkles, Star, Filter, X,
+  Images, Search, Heart, Trash2, Download, Copy, Layers, Sparkles, Star, Plus, Crop,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
+import { ImageUploader } from '../components/shared/ImageUploader';
 import {
-  Card, Button, Input, Select, Modal, Badge, EmptyState, Skeleton, Tabs,
+  Card, Button, Input, Modal, Badge, EmptyState, Skeleton, Tabs,
 } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
 import { get, post, patch, del } from '../lib/api';
@@ -97,12 +98,50 @@ function AssetModal({ asset, onClose }) {
   const qc = useQueryClient();
   const { data: full } = useQuery({ queryKey: ['asset', asset.id], queryFn: () => get(`/assets/${asset.id}`) });
   const [active, setActive] = useState(asset);
+  const [addingVersion, setAddingVersion] = useState(false);
+  const [variants, setVariants] = useState(null);
 
-  const versions = [full, ...(full?.versions || [])].filter(Boolean);
+  // Versions hang off the root asset, so opening a child (a v2 thumbnail in the
+  // grid) has to resolve back to the root to see the whole chain. When the
+  // opened asset *is* the root this reuses the query above rather than refetching.
+  const rootId = full?.parentAssetId || asset.id;
+  const { data: root } = useQuery({
+    queryKey: ['asset', rootId],
+    queryFn: () => get(`/assets/${rootId}`),
+    enabled: Boolean(full),
+  });
+  const versions = [root, ...(root?.versions || [])]
+    .filter(Boolean)
+    .sort((a, b) => a.version - b.version);
+
+  const { data: mediaConfig } = useQuery({
+    queryKey: ['media-config'],
+    queryFn: () => get('/media/config'),
+    staleTime: 5 * 60_000,
+  });
 
   const remove = useMutation({
     mutationFn: (id) => del(`/assets/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['assets'] }); toast.success('Deleted'); onClose(); },
+  });
+
+  const addVersion = useMutation({
+    mutationFn: (url) => post(`/assets/${rootId}/version`, { url }),
+    onSuccess: (created) => {
+      qc.invalidateQueries({ queryKey: ['asset', rootId] });
+      qc.invalidateQueries({ queryKey: ['assets'] });
+      setActive(created);
+      setAddingVersion(false);
+      setVariants(null);
+      toast.success(`Saved as version ${created.version}`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const resize = useMutation({
+    mutationFn: () => post('/media/platform-variants', { publicId: active.cloudinaryId || null, url: active.url }),
+    onSuccess: setVariants,
+    onError: (e) => toast.error(e.message),
   });
 
   return (
@@ -135,20 +174,75 @@ function AssetModal({ asset, onClose }) {
           )}
           <p className="text-xs text-muted">Created {fmtDate(active.createdAt)}</p>
 
-          {versions.length > 1 && (
-            <div>
-              <p className="label flex items-center gap-1.5"><Layers className="h-4 w-4" /> Versions ({versions.length})</p>
-              <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          {/* Versions (Feature 3) — every revision stays side by side. */}
+          <div>
+            <div className="flex items-center justify-between">
+              <p className="label mb-0 flex items-center gap-1.5"><Layers className="h-4 w-4" /> Versions ({versions.length || 1})</p>
+              {!addingVersion && (
+                <Button variant="ghost" size="sm" onClick={() => setAddingVersion(true)}>
+                  <Plus className="h-3.5 w-3.5" /> Add version
+                </Button>
+              )}
+            </div>
+            {versions.length > 1 && (
+              <div className="mt-2 flex gap-2 overflow-x-auto no-scrollbar pb-1">
                 {versions.map((v) => (
-                  <button key={v.id} onClick={() => setActive(v)}
+                  <button key={v.id} onClick={() => { setActive(v); setVariants(null); }}
                     className={cn('relative shrink-0 overflow-hidden rounded-lg border-2 transition', active.id === v.id ? 'border-brand-500' : 'border-transparent hover:border-border')}>
                     <img src={v.thumbnailUrl || v.url} alt="" className="h-16 w-16 object-cover" />
                     <span className="absolute bottom-0 right-0 rounded-tl bg-slate-950/70 px-1 text-[9px] text-white">v{v.version}</span>
                   </button>
                 ))}
               </div>
+            )}
+            {addingVersion && (
+              <div className="mt-2">
+                <ImageUploader value="" onChange={(url) => url && addVersion.mutate(url)} folder="assets" aspect="aspect-video" />
+                <div className="mt-1.5 flex items-center justify-between">
+                  <p className="text-xs text-muted">Upload a revision — the prompt and tags carry over.</p>
+                  <button onClick={() => setAddingVersion(false)} className="text-xs text-muted hover:text-fg">Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Platform resizing (Feature 5) — one asset, every placement. */}
+          <div>
+            <div className="flex items-center justify-between">
+              <p className="label mb-0 flex items-center gap-1.5"><Crop className="h-4 w-4" /> Platform sizes</p>
+              <Button variant="ghost" size="sm" onClick={() => resize.mutate()} loading={resize.isPending}>
+                <Crop className="h-3.5 w-3.5" /> {variants ? 'Refresh' : 'Generate'}
+              </Button>
             </div>
-          )}
+            {variants ? (
+              <div className="mt-2 space-y-1.5">
+                {mediaConfig && !mediaConfig.cloudinaryEnabled && (
+                  <p className="rounded-lg bg-amber-500/10 p-2 text-xs text-amber-600">
+                    Cloudinary isn’t configured, so these link to the original at its original size.
+                  </p>
+                )}
+                {variants.map((v) => (
+                  <div key={v.key} className="flex items-center gap-2.5 rounded-lg border border-border p-2">
+                    <img src={v.url} alt="" className="h-10 w-10 shrink-0 rounded object-cover" loading="lazy" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium text-fg">{v.label}</p>
+                      <p className="text-[11px] text-muted">{v.width} × {v.height}</p>
+                    </div>
+                    <button onClick={() => copyToClipboard(v.url).then(() => toast.success('URL copied'))}
+                      title="Copy URL" className="rounded-md p-1.5 text-muted hover:bg-elevated hover:text-fg">
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                    <a href={v.url} target="_blank" rel="noreferrer" title="Open"
+                      className="rounded-md p-1.5 text-muted hover:bg-elevated hover:text-fg">
+                      <Download className="h-3.5 w-3.5" />
+                    </a>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-1 text-xs text-muted">Crop this asset for Instagram square, portrait and story, plus Facebook feed and square.</p>
+            )}
+          </div>
         </div>
       </div>
     </Modal>

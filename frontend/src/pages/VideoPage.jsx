@@ -1,16 +1,184 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Clapperboard, Plus, Play, Loader2, Trash2, Pencil, AlertTriangle, Film, X, Download,
+  Clapperboard, Plus, Play, Loader2, Trash2, Pencil, AlertTriangle, Film, X, Download, Info,
+  Layers, Music, Timer, ArrowUp, ArrowDown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { ImageUploader } from '../components/shared/ImageUploader';
 import { AudioUploader } from '../components/shared/AudioUploader';
-import { Card, CardBody, Button, Input, Field, Select, Modal, StatusBadge, EmptyState, Skeleton } from '../components/ui';
+import {
+  Card, CardBody, Button, Input, Field, Select, Modal, ConfirmDialog, EmptyState, Skeleton,
+} from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
 import { get, post, patch, del } from '../lib/api';
-import { fmtDate, cn } from '../lib/utils';
+import { cn } from '../lib/utils';
+
+const ASPECT_LABEL = { '9:16': 'Reel', '1:1': 'Square', '16:9': 'Wide' };
+
+// Poster overlays need their own status treatment: the shared StatusBadge uses
+// translucent tints tuned for a light card surface and disappears over artwork.
+const STATUS_DOT = {
+  DRAFT: 'bg-slate-300',
+  RENDERING: 'bg-brand-400 animate-pulse',
+  READY: 'bg-emerald-400',
+  FAILED: 'bg-red-400',
+};
+const STATUS_LABEL = { DRAFT: 'Draft', RENDERING: 'Rendering', READY: 'Ready', FAILED: 'Failed' };
+
+/** Small pill for the poster overlays. */
+function Chip({ icon: Icon, children, className }) {
+  return (
+    <span className={cn('inline-flex items-center gap-1 rounded-md bg-slate-950/65 px-1.5 py-0.5 text-[11px] font-medium text-white backdrop-blur-sm', className)}>
+      {Icon && <Icon className="h-3 w-3 shrink-0" />}
+      {children}
+    </span>
+  );
+}
+
+/** Icon-only action with a real touch target — the old bare icons were 16px. */
+function IconAction({ icon: Icon, label, danger, disabled, ...props }) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      disabled={disabled}
+      className={cn(
+        'grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border text-muted transition',
+        'hover:bg-elevated hover:text-fg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/20',
+        danger && 'hover:border-red-500/40 hover:text-red-500',
+        disabled && 'pointer-events-none opacity-40'
+      )}
+      {...props}
+    >
+      <Icon className="h-4 w-4" />
+    </button>
+  );
+}
+
+/**
+ * Poster frame for a reel.
+ *
+ * The old markup put `aspect-[9/16]` and `max-h-72` on the same box, which the
+ * browser resolves by shrinking the *width* to keep the ratio — a 9:16 card in
+ * a 363px column collapsed to 162px and left a dead gap beside it. Here the
+ * frame is a fixed 4:5 box and the still sits inside it with `object-contain`
+ * over a blurred copy of itself, so 9:16, 1:1 and 16:9 reels all fill the same
+ * card without bars or gaps.
+ */
+function Poster({ project, onPlay, canPlay }) {
+  const still = project.images?.[0];
+  const scenes = project.images?.length || 0;
+  const Wrapper = canPlay ? 'button' : 'div';
+
+  return (
+    <Wrapper
+      {...(canPlay ? { type: 'button', onClick: onPlay, 'aria-label': `Play ${project.title}` } : {})}
+      className={cn('group/poster relative block aspect-[4/5] w-full overflow-hidden bg-slate-950 text-left', canPlay && 'cursor-pointer')}
+    >
+      {still ? (
+        <>
+          <img src={still} alt="" aria-hidden className="absolute inset-0 h-full w-full scale-110 object-cover opacity-40 blur-2xl" />
+          <img
+            src={still}
+            alt=""
+            loading="lazy"
+            className={cn(
+              'relative h-full w-full object-contain p-3 transition duration-300',
+              project.status === 'RENDERING' && 'opacity-40',
+              canPlay && 'group-hover/poster:scale-[1.03]'
+            )}
+          />
+        </>
+      ) : (
+        <div className="grid h-full place-items-center text-slate-600"><Film className="h-10 w-10" /></div>
+      )}
+
+      {project.status === 'RENDERING' && (
+        <div className="absolute inset-0 grid place-items-center">
+          <div className="flex flex-col items-center gap-2 text-white">
+            <Loader2 className="h-8 w-8 animate-spin" />
+            <span className="text-xs font-medium">Rendering…</span>
+          </div>
+        </div>
+      )}
+      {project.status === 'FAILED' && (
+        <div className="absolute inset-0 grid place-items-center">
+          <span className="grid h-12 w-12 place-items-center rounded-full bg-amber-500/20 text-amber-300 backdrop-blur-sm">
+            <AlertTriangle className="h-6 w-6" />
+          </span>
+        </div>
+      )}
+      {canPlay && (
+        <div className="absolute inset-0 grid place-items-center bg-slate-950/15 transition group-hover/poster:bg-slate-950/40">
+          <span className="grid h-14 w-14 place-items-center rounded-full bg-white/95 text-brand-700 shadow-lg transition group-hover/poster:scale-110">
+            <Play className="h-6 w-6 fill-current" />
+          </span>
+        </div>
+      )}
+
+      <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-2">
+        <Chip>
+          <span className={cn('h-1.5 w-1.5 rounded-full', STATUS_DOT[project.status] || 'bg-slate-300')} />
+          {STATUS_LABEL[project.status] || project.status}
+        </Chip>
+        <Chip>{project.aspect}</Chip>
+      </div>
+
+      <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-1.5 bg-gradient-to-t from-slate-950/85 to-transparent p-2 pt-8">
+        <Chip icon={Timer}>{project.durationS}s</Chip>
+        <Chip icon={Layers}>{scenes} {scenes === 1 ? 'scene' : 'scenes'}</Chip>
+        {project.audioUrl && <Chip icon={Music}>Audio</Chip>}
+        <span className="ml-auto text-[11px] font-medium text-white/75">{ASPECT_LABEL[project.aspect] || project.aspect}</span>
+      </div>
+    </Wrapper>
+  );
+}
+
+function ReelCard({ project, canRender, rendering, onPlay, onEdit, onDelete, onRender }) {
+  const isRendering = project.status === 'RENDERING';
+  const canPlay = project.status === 'READY' && Boolean(project.outputUrl);
+
+  return (
+    <Card className="flex flex-col overflow-hidden">
+      <Poster project={project} onPlay={onPlay} canPlay={canPlay} />
+
+      <CardBody className="flex flex-1 flex-col gap-3 p-4">
+        <h3 className="line-clamp-2 font-display font-semibold leading-snug text-fg" title={project.title}>
+          {project.title}
+        </h3>
+
+        {project.status === 'FAILED' && project.error && (
+          <p className="rounded-lg bg-red-500/10 p-2 text-xs leading-relaxed text-red-600 dark:text-red-400">{project.error}</p>
+        )}
+        {project.status === 'READY' && project.warning && (
+          <p className="rounded-lg bg-amber-500/10 p-2 text-xs leading-relaxed text-amber-600">{project.warning}</p>
+        )}
+
+        <div className="mt-auto flex items-center gap-2 pt-1">
+          <Button
+            size="sm"
+            variant={canPlay ? 'secondary' : 'primary'}
+            className="min-w-0 flex-1"
+            onClick={onRender}
+            disabled={isRendering || !canRender}
+            loading={rendering}
+            title={canRender ? undefined : 'FFmpeg is not installed on the server'}
+          >
+            <Play className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
+              {isRendering ? 'Rendering…' : canPlay ? 'Re-render' : project.status === 'FAILED' ? 'Retry render' : 'Render reel'}
+            </span>
+          </Button>
+          <IconAction icon={Pencil} label="Edit reel" onClick={onEdit} disabled={isRendering} />
+          <IconAction icon={Trash2} label="Delete reel" danger onClick={onDelete} disabled={isRendering} />
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
 
 export default function VideoPage() {
   const qc = useQueryClient();
@@ -18,6 +186,16 @@ export default function VideoPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [toDelete, setToDelete] = useState(null);
+
+  // Surface the server's FFmpeg capabilities up front — otherwise the only way
+  // to discover a missing binary or a drawtext-less build is a failed render.
+  const { data: ffmpeg } = useQuery({
+    queryKey: ['ffmpeg-status'],
+    queryFn: () => get('/videos/status/ffmpeg'),
+    staleTime: 5 * 60_000,
+  });
+  const canRender = ffmpeg?.available !== false;
 
   const { data: videos, isLoading } = useQuery({
     queryKey: ['videos', activeBrandId],
@@ -28,7 +206,7 @@ export default function VideoPage() {
 
   const create = useMutation({
     mutationFn: (v) => post('/videos', { ...v, brandId: activeBrandId }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['videos'] }); setCreating(false); toast.success('Video project created'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['videos'] }); setCreating(false); toast.success('Reel created'); },
     onError: (e) => toast.error(e.message),
   });
   const update = useMutation({
@@ -48,70 +226,81 @@ export default function VideoPage() {
   });
   const remove = useMutation({
     mutationFn: (id) => del(`/videos/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['videos'] }); toast.success('Deleted'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['videos'] }); setToDelete(null); toast.success('Reel deleted'); },
     onError: (e) => toast.error(e.message),
   });
 
+  const newReelBtn = (
+    <Button onClick={() => setCreating(true)} disabled={!activeBrandId}>
+      <Plus className="h-4 w-4" /> New Reel
+    </Button>
+  );
+
   return (
     <div className="space-y-6">
-      <PageHeader title="Video Studio" description="Stitch product images, captions and audio into short promo reels (server-side FFmpeg)." icon={Clapperboard}
-        actions={<Button onClick={() => setCreating(true)} disabled={!activeBrandId}><Plus className="h-4 w-4" /> New Reel</Button>} />
+      <PageHeader
+        title="Video Studio"
+        description="Stitch product images, captions and a soundtrack into short promo reels."
+        icon={Clapperboard}
+        actions={newReelBtn}
+      />
+
+      {ffmpeg?.available === false && (
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 sm:flex-row sm:items-start">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />
+          <div className="min-w-0 text-sm">
+            <p className="font-medium text-fg">FFmpeg isn’t available on this server</p>
+            <p className="mt-1 leading-relaxed text-muted">
+              You can still build and save reel projects, but rendering is disabled until FFmpeg is installed —
+              <code className="mx-1 rounded bg-border/60 px-1">brew install ffmpeg</code> (macOS) or
+              <code className="mx-1 rounded bg-border/60 px-1">apt install ffmpeg</code> (Linux), or point
+              <code className="mx-1 rounded bg-border/60 px-1">FFMPEG_PATH</code> at the binary. The Docker image ships with it.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {ffmpeg?.available && ffmpeg.captions === 'none' && (
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-elevated/50 p-4 sm:flex-row sm:items-start">
+          <Info className="h-5 w-5 shrink-0 text-brand-500" />
+          <div className="min-w-0 text-sm">
+            <p className="font-medium text-fg">Captions will be skipped on render</p>
+            <p className="mt-1 leading-relaxed text-muted">
+              This FFmpeg build has no <code className="rounded bg-border/60 px-1">drawtext</code> filter (it needs
+              libfreetype) and Cloudinary isn’t configured, so scene text can’t be burned in. Reels still render.
+            </p>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-72 rounded-2xl" />)}</div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[430px] rounded-2xl" />)}
+        </div>
       ) : videos?.length ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {videos.map((v) => (
-            <Card key={v.id} className="overflow-hidden">
-              <div className="relative aspect-[9/16] max-h-72 bg-elevated overflow-hidden">
-                {v.status === 'READY' && v.outputUrl ? (
-                  <button onClick={() => setPreview(v)} className="group h-full w-full">
-                    <img src={v.images?.[0]} alt="" className="h-full w-full object-cover" />
-                    <div className="absolute inset-0 grid place-items-center bg-slate-950/30 group-hover:bg-slate-950/50 transition">
-                      <span className="grid h-14 w-14 place-items-center rounded-full bg-white/90 text-brand-700"><Play className="h-6 w-6 fill-current" /></span>
-                    </div>
-                  </button>
-                ) : (
-                  <>
-                    {v.images?.[0] && <img src={v.images[0]} alt="" className="h-full w-full object-cover opacity-60" />}
-                    <div className="absolute inset-0 grid place-items-center">
-                      {v.status === 'RENDERING' ? (
-                        <div className="flex flex-col items-center gap-2 text-white"><Loader2 className="h-8 w-8 animate-spin" /><span className="text-sm">Rendering…</span></div>
-                      ) : v.status === 'FAILED' ? (
-                        <div className="flex flex-col items-center gap-1 px-4 text-center text-amber-300"><AlertTriangle className="h-7 w-7" /><span className="text-xs">Render failed</span></div>
-                      ) : (
-                        <Film className="h-10 w-10 text-muted" />
-                      )}
-                    </div>
-                  </>
-                )}
-                <div className="absolute top-2 left-2"><StatusBadge status={v.status} /></div>
-              </div>
-              <CardBody className="p-4">
-                <div className="flex items-start justify-between">
-                  <div className="min-w-0">
-                    <h3 className="font-medium text-fg truncate">{v.title}</h3>
-                    <p className="text-xs text-muted">{v.aspect} · {v.durationS}s · {v.images?.length || 0} scenes</p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <button onClick={() => setEditing(v)} title="Edit reel" className="text-muted hover:text-brand-500"><Pencil className="h-4 w-4" /></button>
-                    <button onClick={() => remove.mutate(v.id)} title="Delete reel" className="text-muted hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
-                  </div>
-                </div>
-                {v.status === 'FAILED' && v.error && <p className="mt-2 rounded-lg bg-amber-500/10 p-2 text-xs text-amber-600">{v.error}</p>}
-                {v.status === 'READY' && v.warning && <p className="mt-2 rounded-lg bg-amber-500/10 p-2 text-xs text-amber-600">{v.warning}</p>}
-                {v.status !== 'RENDERING' && (
-                  <Button size="sm" variant={v.status === 'READY' ? 'secondary' : 'primary'} className="mt-3 w-full" onClick={() => render.mutate(v.id)} disabled={render.isPending} loading={render.isPending && render.variables === v.id}>
-                    <Play className="h-3.5 w-3.5" /> {v.status === 'READY' ? 'Re-render' : v.status === 'FAILED' ? 'Retry render' : 'Render reel'}
-                  </Button>
-                )}
-              </CardBody>
-            </Card>
+            <ReelCard
+              key={v.id}
+              project={v}
+              canRender={canRender}
+              rendering={render.isPending && render.variables === v.id}
+              onPlay={() => setPreview(v)}
+              onEdit={() => setEditing(v)}
+              onDelete={() => setToDelete(v)}
+              onRender={() => render.mutate(v.id)}
+            />
           ))}
         </div>
       ) : (
-        <Card><EmptyState icon={Clapperboard} title="No reels yet" description="Create a reel from your product images and captions."
-          action={<Button onClick={() => setCreating(true)} disabled={!activeBrandId}><Plus className="h-4 w-4" /> New Reel</Button>} /></Card>
+        <Card>
+          <EmptyState
+            icon={Clapperboard}
+            title="No reels yet"
+            description="Turn your product images into a short promo reel — up to six scenes, with captions and a soundtrack."
+            action={newReelBtn}
+          />
+        </Card>
       )}
 
       {(creating || editing) && (
@@ -123,12 +312,46 @@ export default function VideoPage() {
         />
       )}
 
-      <Modal open={Boolean(preview)} onClose={() => setPreview(null)} title={preview?.title} size="md"
-        footer={preview?.outputUrl && <a href={preview.outputUrl} target="_blank" rel="noreferrer" download><Button variant="secondary"><Download className="h-4 w-4" /> Download</Button></a>}>
+      <Modal
+        open={Boolean(preview)}
+        onClose={() => setPreview(null)}
+        title={preview?.title}
+        subtitle={preview ? `${preview.aspect} · ${preview.durationS}s · ${preview.images?.length || 0} scenes` : undefined}
+        size="md"
+        footer={
+          preview?.outputUrl && (
+            <a href={preview.outputUrl} target="_blank" rel="noreferrer" download>
+              <Button variant="secondary"><Download className="h-4 w-4" /> Download</Button>
+            </a>
+          )
+        }
+      >
         {preview?.outputUrl && (
-          <video key={preview.outputUrl} src={preview.outputUrl} controls autoPlay loop className="mx-auto max-h-[70vh] rounded-xl" />
+          <div className="grid place-items-center rounded-xl bg-slate-950 p-2">
+            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+            <video
+              key={preview.outputUrl}
+              src={preview.outputUrl}
+              controls
+              autoPlay
+              loop
+              playsInline
+              className="max-h-[60vh] w-auto max-w-full rounded-lg"
+            />
+          </div>
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={Boolean(toDelete)}
+        onClose={() => setToDelete(null)}
+        onConfirm={() => remove.mutate(toDelete.id)}
+        title={`Delete “${toDelete?.title}”?`}
+        message="The project and any rendered video are removed. This can't be undone."
+        confirmLabel="Delete reel"
+        danger
+        loading={remove.isPending}
+      />
     </div>
   );
 }
@@ -146,42 +369,111 @@ function VideoModal({ project, onClose, onSave, saving }) {
       : [{ image: '', caption: '' }]
   );
 
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const updateScene = (i, key, val) => setScenes((s) => s.map((sc, x) => (x === i ? { ...sc, [key]: val } : sc)));
-  const addScene = () => scenes.length < 6 && setScenes([...scenes, { image: '', caption: '' }]);
-  const removeScene = (i) => setScenes(scenes.filter((_, x) => x !== i));
+  const addScene = () => setScenes((s) => (s.length < 6 ? [...s, { image: '', caption: '' }] : s));
+  const removeScene = (i) => setScenes((s) => s.filter((_, x) => x !== i));
+  const move = (i, dir) => setScenes((s) => {
+    const arr = [...s];
+    const j = i + dir;
+    if (j < 0 || j >= arr.length) return s;
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+    return arr;
+  });
+
+  const filled = scenes.filter((s) => s.image);
+  const perScene = filled.length ? (form.durationS / filled.length).toFixed(1) : null;
 
   const submit = () => {
-    const filled = scenes.filter((s) => s.image);
-    if (!filled.length) return toast.error('Add at least one image');
+    if (!filled.length) return toast.error('Add at least one scene image');
     onSave({ ...form, images: filled.map((s) => s.image), captions: filled.map((s) => s.caption) });
     return undefined;
   };
 
   return (
-    <Modal open onClose={onClose} title={project ? 'Edit reel' : 'New promo reel'} size="xl"
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={submit} loading={saving} disabled={!form.title}>{project ? 'Save changes' : 'Create project'}</Button></>}>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Title" className="sm:col-span-3"><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Eid Reel" /></Field>
-        <Field label="Aspect"><Select value={form.aspect} onChange={(e) => setForm({ ...form, aspect: e.target.value })}><option value="9:16">9:16 Reel</option><option value="1:1">1:1 Square</option><option value="16:9">16:9 Wide</option></Select></Field>
-        <Field label="Duration (s)"><Input type="number" min={5} max={30} value={form.durationS} onChange={(e) => setForm({ ...form, durationS: Number(e.target.value) })} /></Field>
-        <Field label="Soundtrack" hint="optional" className="sm:col-span-3">
-          <AudioUploader value={form.audioUrl} onChange={(url) => setForm({ ...form, audioUrl: url })} />
-        </Field>
-      </div>
+    <Modal
+      open
+      onClose={onClose}
+      title={project ? 'Edit reel' : 'New promo reel'}
+      subtitle={perScene ? `${filled.length} ${filled.length === 1 ? 'scene' : 'scenes'} · about ${perScene}s each` : 'Add up to six scenes'}
+      size="xl"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button onClick={submit} loading={saving} disabled={!form.title}>
+            {project ? 'Save changes' : 'Create reel'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-6">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Title" className="sm:col-span-2">
+            <Input value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="Eid Collection Reel" />
+          </Field>
+          <Field label="Aspect ratio">
+            <Select value={form.aspect} onChange={(e) => set('aspect', e.target.value)}>
+              <option value="9:16">9:16 — Reel / Story</option>
+              <option value="1:1">1:1 — Square feed</option>
+              <option value="16:9">16:9 — Wide</option>
+            </Select>
+          </Field>
+          <Field label="Duration" hint={perScene ? `${perScene}s per scene` : 'seconds'}>
+            <Input type="number" min={5} max={30} value={form.durationS} onChange={(e) => set('durationS', Number(e.target.value))} />
+          </Field>
+          <Field label="Soundtrack" hint="optional" className="sm:col-span-2">
+            <AudioUploader value={form.audioUrl} onChange={(url) => set('audioUrl', url)} />
+          </Field>
+        </div>
 
-      <p className="label mt-5">Scenes (max 6)</p>
-      <div className="space-y-3">
-        {scenes.map((sc, i) => (
-          <div key={i} className="flex gap-3 rounded-xl border border-border p-3">
-            <div className="w-28 shrink-0"><ImageUploader value={sc.image} onChange={(url) => updateScene(i, 'image', url)} folder="video" aspect="aspect-[9/16]" /></div>
-            <div className="flex-1">
-              <Field label={`Scene ${i + 1} caption`}><Input value={sc.caption} onChange={(e) => updateScene(i, 'caption', e.target.value)} placeholder="This Eid, wear heritage." /></Field>
-              {scenes.length > 1 && <button onClick={() => removeScene(i)} className="mt-2 flex items-center gap-1 text-xs text-red-500"><X className="h-3.5 w-3.5" /> Remove scene</button>}
-            </div>
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="label mb-0">Scenes</p>
+            <span className="text-xs text-muted">{scenes.length} of 6</span>
           </div>
-        ))}
+
+          <div className="space-y-3">
+            {scenes.map((sc, i) => (
+              // Stacks under 640px so the thumbnail and caption never fight for width.
+              <div key={i} className="flex flex-col gap-3 rounded-xl border border-border p-3 sm:flex-row">
+                <div className="flex items-start gap-3">
+                  <span className="mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-500/10 text-xs font-bold text-brand-500">
+                    {i + 1}
+                  </span>
+                  <div className="w-24 shrink-0 sm:w-28">
+                    <ImageUploader value={sc.image} onChange={(url) => updateScene(i, 'image', url)} folder="video" aspect="aspect-[9/16]" />
+                  </div>
+                </div>
+
+                <div className="min-w-0 flex-1 space-y-2">
+                  <Field label={`Scene ${i + 1} caption`} hint="optional">
+                    <Input value={sc.caption} onChange={(e) => updateScene(i, 'caption', e.target.value)} placeholder="This Eid, wear heritage." />
+                  </Field>
+                  <div className="flex items-center gap-2">
+                    <IconAction icon={ArrowUp} label="Move scene up" onClick={() => move(i, -1)} disabled={i === 0} />
+                    <IconAction icon={ArrowDown} label="Move scene down" onClick={() => move(i, 1)} disabled={i === scenes.length - 1} />
+                    {scenes.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeScene(i)}
+                        className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-2 text-xs text-red-500 transition hover:bg-red-500/10"
+                      >
+                        <X className="h-3.5 w-3.5" /> Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {scenes.length < 6 && (
+            <Button variant="ghost" size="sm" className="mt-2" onClick={addScene}>
+              <Plus className="h-4 w-4" /> Add scene
+            </Button>
+          )}
+        </div>
       </div>
-      {scenes.length < 6 && <Button variant="ghost" size="sm" className="mt-2" onClick={addScene}><Plus className="h-4 w-4" /> Add scene</Button>}
     </Modal>
   );
 }

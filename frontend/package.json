@@ -6,8 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview",
-    "lint": "eslint ."
+    "preview": "vite preview"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.1.0",
@@ -17,7 +16,6 @@
     "axios": "^1.7.7",
     "clsx": "^2.1.1",
     "date-fns": "^3.6.0",
-    "generative-marketing-studio": "file:..",
     "lucide-react": ">=0.454.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

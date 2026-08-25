@@ -7,6 +7,11 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const bool = (v) => v === true || v === 'true' || v === '1';
 
+// A trailing slash on a base URL turns every interpolation into `host//path`
+// and stops the CORS allow-list matching (an Origin header never has one).
+const baseUrl = (v, fallback) => String(v || fallback).trim().replace(/\/+$/, '');
+const csv = (v) => String(v || '').split(',').map((s) => baseUrl(s.trim(), '')).filter(Boolean);
+
 /**
  * Centralised, typed-ish config. Each integration exposes an `enabled` flag so
  * services can transparently fall back to mock mode when keys are absent.
@@ -15,8 +20,17 @@ export const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   isProd: process.env.NODE_ENV === 'production',
   port: Number(process.env.PORT || 4000),
-  apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:4000',
-  webBaseUrl: process.env.WEB_BASE_URL || 'http://localhost:5173',
+  apiBaseUrl: baseUrl(process.env.API_BASE_URL, 'http://localhost:4000'),
+  webBaseUrl: baseUrl(process.env.WEB_BASE_URL, 'http://localhost:5173'),
+
+  cors: {
+    /** Extra exact origins (staging domains, a second frontend), comma-separated. */
+    extraOrigins: csv(process.env.CORS_EXTRA_ORIGINS),
+    /** Vercel project whose preview deploys may call the API. Derived from WEB_BASE_URL when unset. */
+    vercelProject: (process.env.VERCEL_PROJECT_NAME || '').trim(),
+    /** Set VERCEL_PREVIEWS=false to allow only the exact origins above. */
+    vercelPreviews: process.env.VERCEL_PREVIEWS !== 'false',
+  },
 
   databaseUrl: process.env.DATABASE_URL,
 

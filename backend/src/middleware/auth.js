@@ -61,9 +61,11 @@ export const optionalAuth = asyncHandler(async (req, _res, next) => {
     const payload = verifyToken(token);
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, role: true, tenantId: true, name: true, email: true },
+      // isActive has to be selected or the check below is always true and a
+      // deactivated account keeps its identity on optional-auth routes.
+      select: { id: true, role: true, tenantId: true, name: true, email: true, isActive: true },
     });
-    if (user?.isActive !== false) {
+    if (user?.isActive) {
       req.user = user;
       req.tenantId = user?.tenantId;
     }

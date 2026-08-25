@@ -58,6 +58,7 @@ router.post(
         campaignId: req.body.campaignId || null,
         fgColor: req.body.fgColor,
         bgColor: req.body.bgColor,
+        tracked: req.body.tracked,
       },
     });
     const encode = req.body.tracked ? trackingUrl(code.id) : req.body.targetUrl;
@@ -77,12 +78,16 @@ router.patch(
       targetUrl: z.string().optional(),
       fgColor: z.string().max(9).optional(),
       bgColor: z.string().max(9).optional(),
+      tracked: z.boolean().optional(),
     }),
   }),
   asyncHandler(async (req, res) => {
     const code = await ensureOwned('qRCode', req.tenantId, req.params.id);
     const merged = { ...code, ...req.body };
-    const dataUrl = await renderDataUrl(trackingUrl(code.id), merged.fgColor, merged.bgColor);
+    // Re-encoding always through the tracker used to silently switch untracked
+    // codes over to scan tracking. Honour whatever the code was created with.
+    const encode = merged.tracked === false ? merged.targetUrl : trackingUrl(code.id);
+    const dataUrl = await renderDataUrl(encode, merged.fgColor, merged.bgColor);
     const updated = await prisma.qRCode.update({ where: { id: code.id }, data: { ...req.body, dataUrl } });
     return ok(res, updated);
   })

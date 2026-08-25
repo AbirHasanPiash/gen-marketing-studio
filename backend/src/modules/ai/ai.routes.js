@@ -5,7 +5,7 @@ import { validate } from '../../middleware/validate.js';
 import { authenticate } from '../../middleware/auth.js';
 import { asyncHandler, ok } from '../../utils/http.js';
 import * as groq from '../../lib/groq.js';
-import { upcomingMoments, getMoment } from '../../data/localMoments.js';
+import { upcomingMoments, getMoment, nextOccurrence } from '../../data/localMoments.js';
 
 const router = Router();
 
@@ -210,7 +210,8 @@ router.post(
         color: moment.colors[0],
         isSuggested: true,
         momentKey: moment.key,
-        startDate: new Date(Date.now() + moment.month * 0), // anchored client-side; kept simple
+        // Anchor the campaign to the moment itself, not to "now".
+        startDate: nextOccurrence(moment.month, moment.day),
       },
     });
 

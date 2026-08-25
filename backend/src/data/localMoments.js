@@ -189,12 +189,16 @@ export const LOCAL_MOMENTS = [
   },
 ];
 
+/** The next calendar date this month/day falls on, from a reference date. */
+export function nextOccurrence(month, day, from = new Date()) {
+  const year = from.getFullYear();
+  const target = new Date(year, month - 1, day);
+  return target < from ? new Date(year + 1, month - 1, day) : target;
+}
+
 /** Days until the next occurrence of month/day from a reference date. */
 function daysUntil(month, day, from) {
-  const year = from.getFullYear();
-  let target = new Date(year, month - 1, day);
-  if (target < from) target = new Date(year + 1, month - 1, day);
-  return Math.ceil((target - from) / (1000 * 60 * 60 * 24));
+  return Math.ceil((nextOccurrence(month, day, from) - from) / (1000 * 60 * 60 * 24));
 }
 
 /** Moments coming up within `withinDays`, nearest first. */

@@ -1,49 +1,53 @@
-# Generative Marketing Studio for Small Businesses
+# Generative Marketing Studio
 
-An AI-powered social marketing studio for local brands. This monorepo contains both the React/Vite frontend and the Node.js/Express backend.
+An AI-powered social marketing studio for small and local brands — brief to visual to caption to
+scheduled post to analytics, in one workspace.
+
+Monorepo: **React + Vite** frontend, **Node + Express + Prisma (MongoDB)** backend.
+
+> **Runs with zero API keys.** Every integration degrades to a keyless or mock mode, so you can
+> demo the whole pipeline — including image generation, publishing and analytics — with nothing but
+> a database. Add keys when you want the real thing.
 
 ---
 
-## 📌 Project Status
+## Features
 
-**This project is in early scaffolding.** Read this before you start — it tells you what already exists and what you are expected to build.
-
-| Area | Status |
+| Area | What you get |
 | --- | --- |
-| Backend config, logger, Prisma client, error handling | ✅ Done |
-| Backend `GET /api/health` | ✅ Done |
-| Prisma schema (Tenant, User, Campaign, Post, Asset, BrandKit, …) | ✅ Done |
-| Backend routes / controllers / services / auth middleware | ❌ Not started — **no `src/routes/` directory exists yet** |
-| `prisma/seed.js`, `src/worker.js` | ❌ Referenced in `package.json` but not written |
-| Frontend source (`index.html`, `vite.config.js`, `src/`) | ❌ Not started — only `package.json` exists |
+| **Workspace** | Multi-tenant workspaces, Owner/Creator roles, team management |
+| **Brands** | Multiple brand profiles per workspace, product catalog, brand switcher |
+| **Brand Kit** | Colour palette extracted from your logo, fonts, lockable |
+| **Copy Studio** | Streaming AI captions & ad copy, 5-variation generator, hashtags, history |
+| **Image Studio** | Text-to-image with a prompt cache that dedupes repeat calls and ranks winners |
+| **Creative Briefs** | Product + style + mood → composed prompt → versioned assets |
+| **Asset Library** | Versions, tags, favourites, prompt search, one-click resize for every placement |
+| **Compositing** | Product cutouts over backgrounds with branded text overlays |
+| **Video Studio** | FFmpeg promo reels from images, captions and a soundtrack |
+| **Campaigns** | Suggestions tuned to upcoming Bangladeshi retail moments (Eid, Boishakh, 11.11 …) |
+| **Calendar** | Month/week views, drag-to-reschedule, unscheduled backlog |
+| **Approvals** | Draft → review → approve/reject → schedule → publish, with a full audit trail |
+| **Publishing** | Facebook & Instagram via Meta Graph, scheduled jobs, exponential-backoff retries |
+| **Analytics** | Engagement over time, per-platform split, best day/hour to post, top posts, campaign ROI |
+| **Link-in-Bio** | Public mini landing page with click tracking |
+| **QR Codes** | Branded codes with scan tracking and redirect |
 
-**What this means for you:**
-
-- Hitting `http://localhost:4000/` returns `{"success":false,"error":{"message":"Route not found: GET /"}}`. This is correct — there is no `/` route. Use **`http://localhost:4000/api/health`** to confirm the API is alive.
-- `npm run dev` starts both processes, but the frontend has nothing to serve until someone scaffolds Vite.
-- `npm run seed` and `npm run db:setup` will fail at the seed step until `backend/prisma/seed.js` exists. Use `npx prisma db push` instead (see [Setup](#3-initialize-the-database-prisma)).
+**Stack** — Node 18+, Express 4, Prisma 6 (MongoDB), Zod, JWT, Agenda, fluent-ffmpeg, Cloudinary ·
+React 18, Vite 6, TailwindCSS, TanStack Query, Zustand, Recharts, dnd-kit
 
 ---
 
-## 🧱 Tech Stack
-
-**Backend** — Node.js 18+, Express 4, Prisma 6 (MongoDB), Zod, JWT, bcryptjs, Cloudinary, Groq, Agenda, fluent-ffmpeg
-**Frontend** — React 18, Vite 6, TailwindCSS, React Router, TanStack Query, Zustand, Axios, Recharts, dnd-kit
-
----
-
-## 🚀 Getting Started
+## Quick start
 
 ### Prerequisites
 
-- **Node.js v18 or higher** (`node -v` to check)
-- **Git**
-- **Access to the team's MongoDB Atlas cluster** — your IP must be whitelisted. Ask the team lead.
-  > Prisma's MongoDB connector **requires a replica set**. Atlas provides this automatically. A plain local `mongod` will not work.
+- **Node.js 18+**
+- **MongoDB as a replica set** — Prisma's MongoDB connector needs one for transactions.
+  Use a free [Atlas](https://www.mongodb.com/atlas) cluster (replica set by default), or run
+  `docker compose up -d` for a local single-node one.
+- **FFmpeg** *(optional)* — only for the Video Studio. `brew install ffmpeg`, or set `FFMPEG_PATH`.
 
-### 1. Clone & Install
-
-Run the install script from the **root** directory. It installs dependencies for both apps and automatically runs `prisma generate` via the backend's `postinstall` hook.
+### 1. Install
 
 ```bash
 git clone https://github.com/AbirHasanPiash/gen-marketing-studio.git
@@ -51,293 +55,235 @@ cd gen-marketing-studio
 npm run install:all
 ```
 
-### 2. Environment Variables
+### 2. Configure
 
-Only the **backend** needs environment variables right now. Create `backend/.env` and paste the template below. Ask the team lead for the `DATABASE_URL` and any integration keys.
-
-> ⚠️ **Never commit `.env`.** It is already gitignored — keep it that way.
+Create `backend/.env`. Only `DATABASE_URL` is required:
 
 ```bash
-# backend/.env
-
-# ---- Core (required) ----
-DATABASE_URL="mongodb+srv://<user>:<password>@<cluster>.mongodb.net/<db>?retryWrites=true&w=majority"
-
-# ---- Server (optional — defaults shown) ----
-NODE_ENV=development
-PORT=4000
-API_BASE_URL=http://localhost:4000
-WEB_BASE_URL=http://localhost:5173
-VERBOSE=false
-
-# ---- Auth (optional in dev, MUST be set in production) ----
-JWT_SECRET=dev-insecure-secret-change-me
-JWT_EXPIRES_IN=7d
-TOKEN_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000
-
-# ---- Integrations (optional — each degrades to mock/disabled when unset) ----
-CLOUDINARY_CLOUD_NAME=
-CLOUDINARY_API_KEY=
-CLOUDINARY_API_SECRET=
-
-OPENROUTER_API_KEY=
-OPENROUTER_API_URL=https://openrouter.ai/api/v1/chat/completions
-OPENROUTER_MODEL=nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
-
-IMAGE_PROVIDER=pollinations
-STABILITY_API_KEY=
-REPLICATE_API_TOKEN=
-OPENAI_API_KEY=
-
-META_APP_ID=
-META_APP_SECRET=
-META_GRAPH_VERSION=v21.0
-META_WEBHOOK_VERIFY_TOKEN=mkt_studio_verify
-
-FFMPEG_PATH=
+DATABASE_URL="mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/mkt_studio?retryWrites=true&w=majority"
 ```
 
-**`DATABASE_URL` is the only required variable.** Everything else has a working default — see `backend/src/config/env.js`. Each integration exposes an `enabled` flag, so services can fall back to mock mode when keys are absent. Check what's live at any time via `GET /api/health`.
+See [Configuration](#configuration) for everything else. The frontend needs no env file in dev —
+Vite proxies `/api` to `http://localhost:4000`.
 
-### 3. Initialize the Database (Prisma)
-
-`npm run install:all` already ran `prisma generate` for you. You need these commands when you **change `schema.prisma`** or set up a fresh database:
+### 3. Set up the database
 
 ```bash
-cd backend
-npx prisma generate     # regenerate the typed client after any schema edit
-npx prisma db push      # sync the schema to MongoDB
-cd ..
+npm run db:setup   # prisma generate → db push → seed with demo data
 ```
 
-Useful extras:
+### 4. Run
 
 ```bash
-npx prisma studio       # visual DB browser at http://localhost:5555
+npm run dev        # API on :4000, web on :5173
 ```
 
-### 4. Run the Application
+Open **http://localhost:5173** and sign in with a seeded account:
 
-From the **root** directory, start both apps concurrently:
+| Email | Password | Role |
+| --- | --- | --- |
+| `owner@demo.com` | `password123` | Owner — approves, schedules and publishes |
+| `creator@demo.com` | `password123` | Creator — drafts and submits |
+| `designer@demo.com` | `password123` | Creator — drafts and submits |
 
-```bash
-npm run dev
-```
-
-| Service | URL |
-| --- | --- |
-| Frontend (Vite) | http://localhost:5173 |
-| Backend API | http://localhost:4000 |
-| Health check | http://localhost:4000/api/health |
-
-To run just one side:
-
-```bash
-npm --prefix backend run dev     # API only, with nodemon hot reload
-npm --prefix frontend run dev    # web only
-```
+The seed builds a complete workspace: two brands with locked brand kits, 10 products, 4 campaigns,
+31 posts covering every lifecycle state, 23 publications with engagement history, a versioned asset
+library, prompt-cache and AI-copy history, a live link-in-bio page, tracked QR codes and three reel
+projects. Everything is hand-authored and deterministic — the same numbers every run — so the charts
+tell a consistent story rather than showing random noise.
 
 ---
 
-## 📂 Project Structure
+## Configuration
+
+All backend config lives in `backend/src/config/env.js`. Every integration exposes an `enabled`
+flag; check what's live at any time via `GET /api/health`.
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | — | **Required.** MongoDB replica-set connection string |
+| `PORT` | `4000` | |
+| `API_BASE_URL` | `http://localhost:4000` | Used in OAuth, QR and media URLs |
+| `WEB_BASE_URL` | `http://localhost:5173` | Frontend origin — CORS allow-list + OAuth redirect target |
+| `CORS_EXTRA_ORIGINS` | — | Comma-separated extra origins (staging, a second frontend) |
+| `VERCEL_PROJECT_NAME` | derived | Vercel project whose previews may call the API. Only needed when `WEB_BASE_URL` is a custom domain |
+| `VERCEL_PREVIEWS` | `true` | `false` restricts CORS to exact origins only |
+| `JWT_SECRET` | dev fallback | **Set a real one in production** |
+| `JWT_EXPIRES_IN` | `7d` | |
+| `TOKEN_ENCRYPTION_KEY` | dev fallback | 32-byte hex; encrypts Meta tokens at rest. `openssl rand -hex 32` |
+| `CLOUDINARY_*` | — | Unset → uploads fall back to data URIs / local disk |
+| `OPENROUTER_API_KEY` | — | Unset → mock copy generator |
+| `OPENROUTER_MODEL` | `nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free` | |
+| `IMAGE_PROVIDER` | `pollinations` | Keyless. Or `gemini` / `stability` / `openai` / `replicate` |
+| `GEMINI_API_KEY` etc. | — | Key for the chosen image provider |
+| `META_APP_ID` / `META_APP_SECRET` | — | Unset → "Connect Meta" attaches demo accounts |
+| `META_GRAPH_VERSION` | `v21.0` | |
+| `META_WEBHOOK_VERIFY_TOKEN` | `mkt_studio_verify` | |
+| `FFMPEG_PATH` | auto-detect | Absolute path to the ffmpeg binary |
+| `VERBOSE` | `false` | Logs Prisma queries |
+
+For the frontend in production, set `VITE_API_URL` to your deployed API origin.
+
+> **Never commit `.env`.** It is gitignored — keep it that way.
+
+---
+
+## Project structure
 
 ```
 gen-marketing-studio/
-├── package.json              # root scripts (dev, install:all, build)
 ├── backend/
-│   ├── .env                  # your local secrets — NEVER commit
 │   ├── prisma/
-│   │   └── schema.prisma     # single source of truth for all models
+│   │   ├── schema.prisma      # single source of truth for all models
+│   │   └── seed.js            # demo workspace, brands, posts, analytics
 │   └── src/
-│       ├── index.js          # entry point: DB connect + app.listen
-│       ├── app.js            # Express app: middleware + route mounting
-│       ├── config/env.js     # centralised env config
-│       ├── lib/
-│       │   ├── prisma.js     # shared PrismaClient singleton
-│       │   └── logger.js
-│       ├── middleware/
-│       │   └── error.js      # notFound + central errorHandler
-│       └── utils/
-│           └── ApiError.js   # operational error carrying an HTTP status
+│       ├── app.js             # Express app: middleware + route mounting
+│       ├── index.js           # entry: DB connect → scheduler → listen
+│       ├── config/env.js      # centralised config
+│       ├── jobs/agenda.js     # publish queue, retries, analytics cron
+│       ├── lib/               # prisma, meta, cloudinary, imagegen, groq, crypto…
+│       ├── middleware/        # auth, validate, error
+│       ├── modules/<name>/    # <name>.routes.js (+ .service.js)
+│       └── utils/             # ApiError, http helpers, scope guards
 └── frontend/
-    └── package.json
-```
-
----
-
-## 🛠️ Contributing Code
-
-### Where to mount your routes
-
-Add your routers inside `createApp()` in `backend/src/app.js`.
-
-> ### ⚠️ Read this or you will lose an hour
-> `app.use(notFound)` and `app.use(errorHandler)` are the **last two lines** of `createApp()`. Express matches middleware in registration order, so **every router must be mounted above them.** A router added below `notFound` is silently unreachable and every request to it returns `Route not found` — while your code looks perfectly correct.
-
-```js
-// backend/src/app.js — inside createApp()
-
-app.use('/api/auth', authLimiter, authRoutes);   // ✅ your routes go here
-app.use('/api/brands', requireAuth, brandRoutes);
-
-app.use(notFound);      // ⬅️ keep these last, always
-app.use(errorHandler);
+    └── src/
+        ├── pages/             # one file per screen
+        ├── components/{ui,layout,shared}/
+        ├── hooks/ · store/    # TanStack Query hooks, Zustand stores
+        └── lib/               # axios client, SSE helper, formatters
 ```
 
 ### Conventions
 
-- **ES Modules only.** The backend is `"type": "module"` — use `import`/`export`, and always include the `.js` extension in relative imports (`./lib/prisma.js`, not `./lib/prisma`).
-- **Import Prisma from the shared singleton:** `import { prisma } from '../lib/prisma.js'` — never call `new PrismaClient()` yourself.
-- **Read config from `env`,** not `process.env` directly: `import { env } from '../config/env.js'`.
-- **Throw, don't hand-roll responses.** Use `ApiError` and let the central handler format it:
-  ```js
-  throw ApiError.notFound('Campaign not found');
-  throw ApiError.badRequest('Invalid payload', details);
-  ```
-  Wrap async handlers so rejections reach `errorHandler` — `next(err)` in a `catch`, or an `asyncHandler` wrapper.
-- **Validate every input with Zod.** `ZodError` is already mapped to a clean 400 in `middleware/error.js` — just let it throw.
-- **Success responses** follow the shape already used by `/api/health`: `{ success: true, ... }`. Errors are `{ success: false, error: { message, details? } }`.
-- **Schema changes are shared.** `schema.prisma` is one file for everyone — announce your change in the team chat and keep edits scoped to your own models to avoid painful conflicts. Run `npx prisma generate` after pulling someone else's schema change.
+- **ES Modules only.** Include the `.js` extension in relative imports.
+- **One Prisma client:** `import { prisma } from '../lib/prisma.js'` — never `new PrismaClient()`.
+- **Read config from `env`,** not `process.env`.
+- **Throw, don't hand-roll responses:** `throw ApiError.notFound('Campaign not found')`.
+  Wrap async handlers in `asyncHandler` so rejections reach the central error handler.
+- **Validate every input with Zod** via the `validate({ body, query, params })` middleware.
+  `ZodError` is already mapped to a clean 400.
+- **Scope every query to the tenant** — use `ensureBrand` / `ensureOwned` from `utils/scope.js`.
+- **Response envelope:** `{ success: true, data, meta? }` / `{ success: false, error: { message, details? } }`.
+- **Mount routers above `notFound`** in `app.js`, or they're silently unreachable.
 
 ---
 
-## 🌿 Git Workflow
+## Scripts
 
-To keep the codebase stable, **nobody commits directly to `main`.** We use a feature branch workflow.
-
-### Step 1 — Sync your local main
-
-Always start from an up-to-date `main`.
-
-```bash
-git checkout main
-git pull origin main
-```
-
-### Step 2 — Create a feature branch
-
-Use a descriptive name: `feature/<module>-<task>` or `bugfix/<issue>`.
-
-```bash
-git checkout -b feature/module-1-auth-routes
-```
-
-### Step 3 — Develop and commit
-
-Write your code, test it locally, and commit with clear messages. Prefer several small commits over one giant one.
-
-```bash
-git add .
-git commit -m "Add Zod validation and user registration endpoint"
-```
-
-### Step 4 — Sync with remote main (crucial)
-
-While you were working, teammates may have merged their code. Pull their changes into your feature branch and resolve conflicts **locally**, before opening a PR.
-
-```bash
-git pull origin main
-```
-
-If there are conflicts, VS Code will highlight them. Accept the correct changes, save, then:
-
-```bash
-git add .
-git commit -m "Merge main into feature/module-1-auth-routes"
-```
-
-> Conflicts in `backend/prisma/schema.prisma` or `backend/src/app.js` are the most likely — these are the two files everyone touches. Keep **both** sides unless you are certain, and ask the other author if unsure.
-
-### Step 5 — Push your branch
-
-```bash
-git push -u origin feature/module-1-auth-routes
-```
-
-### Step 6 — Open a Pull Request
-
-1. Go to the repository on GitHub.
-2. Click the green **"Compare & pull request"** button for your branch.
-3. Add a brief description of what you built and how to test it.
-4. Request a review from **at least one teammate**.
-5. Once approved, click **"Merge pull request"**.
-
-**Before you request review, check:**
-
-- [ ] `npm run dev` starts without errors
-- [ ] You manually tested your endpoints (Postman / Thunder Client / `curl`)
-- [ ] No `.env`, secrets, or API keys in the diff
-- [ ] No stray `console.log` — use `logger` from `src/lib/logger.js`
-- [ ] Routes are mounted **above** `notFound` in `app.js`
-- [ ] If you changed `schema.prisma`, you mentioned it in the PR description
-
-### Step 7 — Clean up
-
-After merging, delete the remote branch on GitHub, then:
-
-```bash
-git checkout main
-git pull origin main
-git branch -d feature/module-1-auth-routes
-```
-
-### Rules
-
-- ❌ **Never `git push --force` to `main`** — or to any branch a teammate is reviewing.
-- ❌ Never commit `.env`, `node_modules/`, or generated Prisma output.
-- ✅ Keep PRs small and focused on one module or feature. Large PRs sit unreviewed.
-
----
-
-## 👥 Module Assignments
-
-| Owner | Responsibilities |
-| --- | --- |
-| **S M ZUNAID ALAM** | Multi-Tenant RBAC · Brand Profile CRUD · Media Pipeline · Link-in-Bio |
-| **KHAN FARHAN MAHDI** | Post Editor · Content Calendar · AI Copy Suggester · Multi-Platform Adaptation |
-| **MD. ABIR HASAN PIASH** | Creative Briefs · Asset Gallery · AI Image Generation · Automated Video Pipelines |
-| **SHAHRIAR MOHAMMAD** | Approval Workflows · Meta Publishing Engine · Performance Analytics |
-
----
-
-## 📜 Available Scripts
-
-Run from the **root** directory:
+Run from the repo root:
 
 | Command | What it does |
 | --- | --- |
-| `npm run install:all` | Install dependencies for backend + frontend |
-| `npm run dev` | Start API and web concurrently |
+| `npm run install:all` | Install root + backend + frontend dependencies |
+| `npm run dev` | Start API and web together |
+| `npm run db:setup` | `prisma generate` → `db push` → seed |
+| `npm run seed` | Re-seed demo data (resets the demo tenant only) |
 | `npm run build` | Production build of the frontend |
-| `npm run db:setup` | `prisma generate` → `db push` → seed ⚠️ *fails until `prisma/seed.js` exists* |
-| `npm run seed` | Seed the database ⚠️ *not implemented yet* |
 
-Backend-only (`cd backend`):
+Backend-only (`cd backend`): `npm run dev` · `npm start` · `npm run worker` ·
+`npm run prisma:generate` · `npm run prisma:push` · `npm run prisma:studio`
 
-| Command | What it does |
-| --- | --- |
-| `npm run dev` | Start API with nodemon hot reload |
-| `npm start` | Start API without hot reload |
-| `npm run prisma:generate` | Regenerate the Prisma client |
-| `npm run prisma:push` | Push schema changes to MongoDB |
-| `npm run prisma:studio` | Open Prisma Studio |
-| `npm run worker` | Background job worker ⚠️ *`src/worker.js` not implemented yet* |
+> After pulling any change to `schema.prisma`, run `npm --prefix backend run prisma:generate`.
 
 ---
 
-## 🩺 Troubleshooting
+## Deployment
 
-**`{"success":false,"error":{"message":"Route not found: GET /"}}`**
-Expected — there is no `/` route. Try `GET /api/health`. If you get this on a route you just wrote, you almost certainly mounted it **below** `app.use(notFound)` in `app.js`.
+**Frontend → Vercel, backend → Render.** The API can't run on Vercel: the Agenda scheduler, the
+FFmpeg render jobs and the `tmp/` static mounts all need a long-lived process with a writable disk.
 
-**`Could not connect to MongoDB. Is the replica set running (docker compose up -d)?`**
-The `docker compose` hint in that message is stale — we use MongoDB Atlas, not Docker. Real causes: your IP isn't whitelisted in Atlas, `DATABASE_URL` is missing or malformed in `backend/.env`, or your password contains special characters that need URL-encoding.
+### 1. Backend on Render
 
-**`@prisma/client did not initialize yet` / types out of date**
-Run `cd backend && npx prisma generate`. You need this every time you pull a change to `schema.prisma`.
+**New → Blueprint** → point at this repo; it reads `render.yaml`. Fill the `sync: false` vars:
 
-**CORS error in the browser**
-Allowed origins are `env.webBaseUrl`, `http://localhost:5173`, and `http://localhost:3000` (see `app.js`). If your frontend runs on a different port, set `WEB_BASE_URL` in `backend/.env`.
+- `DATABASE_URL` — your Atlas string. Allow-list `0.0.0.0/0` in Atlas; Render has no static IP on
+  the free plans.
+- `TOKEN_ENCRYPTION_KEY` — `openssl rand -hex 32`. **Set once and never rotate** — it decrypts
+  stored Meta tokens.
+- `API_BASE_URL` — the Render URL, e.g. `https://mkt-studio-api.onrender.com`.
+- `WEB_BASE_URL` — your Vercel URL (fill after step 2).
+- Cloudinary keys — strongly recommended: without them uploads and renders land on Render's
+  ephemeral disk and vanish on the next deploy.
 
-**Port 4000 or 5173 already in use**
-Change `PORT` in `backend/.env`, or free the port: `lsof -ti:4000 | xargs kill -9`.
+Verify with `curl https://<render-url>/api/health`.
+
+### 2. Frontend on Vercel
+
+Import the repo at [vercel.com/new](https://vercel.com/new), then:
+
+- **Root Directory: `frontend`** — the monorepo step people miss. `frontend/vercel.json` supplies
+  the Vite preset, `dist` output and SPA rewrites.
+- Environment variable `VITE_API_URL` = your Render origin, **no trailing slash**
+  (`lib/api.js` appends `/api`).
+
+`VITE_*` values are inlined at build time, so changing `VITE_API_URL` needs a **redeploy**, not a
+restart.
+
+### 3. Connect them
+
+Set `WEB_BASE_URL` on Render to the Vercel URL and redeploy. Preview deployments of that same
+Vercel project are allowed automatically — see [Configuration](#configuration) if production sits
+on a custom domain. For Meta publishing, add `https://<render-url>/api/social/meta/callback` to
+Valid OAuth Redirect URIs in the Meta app dashboard.
+
+> **Free-tier caveat:** Render spins the service down after ~15 minutes idle, and Agenda only runs
+> while the process is awake — a post scheduled for 3am fires whenever the service next wakes. Use a
+> paid instance (or an external cron pinging `/api/health`) for dependable scheduling.
+
+The scheduler runs in-process with the API, so a single web service is enough. To scale it out,
+run `npm run worker` as a separate background service.
+
+---
+
+## Troubleshooting
+
+**`Could not connect to MongoDB`** — your IP isn't whitelisted in Atlas, `DATABASE_URL` is missing
+or malformed, or a password special character needs URL-encoding. Locally, check the replica set is
+up: `docker compose ps`.
+
+**`@prisma/client did not initialize yet`** — run `npm --prefix backend run prisma:generate`.
+Needed after every `schema.prisma` change.
+
+**CORS error in the browser** — allowed origins are `WEB_BASE_URL`, `localhost:5173`,
+`localhost:3000`, anything in `CORS_EXTRA_ORIGINS`, and preview deploys of your Vercel project.
+The server logs each blocked origin once, naming it.
+
+**Video renders are disabled** — the Video Studio checks the server on load and tells you when
+FFmpeg is missing. Install it or set `FFMPEG_PATH`. Captions need a build with the `drawtext` filter
+(libfreetype); without it the reel still renders, and the page says captions will be skipped unless
+Cloudinary is configured to burn them in instead.
+
+**Port already in use** — change `PORT` in `backend/.env`, or `lsof -ti:4000 | xargs kill -9`.
+
+---
+
+## Contributing
+
+Nobody commits directly to `main`.
+
+```bash
+git checkout main && git pull origin main
+git checkout -b feature/<module>-<task>
+# …work, commit in small steps…
+git pull origin main          # resolve conflicts locally, before the PR
+git push -u origin feature/<module>-<task>
+```
+
+Then open a PR and request one review. Before you do, check:
+
+- [ ] `npm run dev` starts clean and you tested your endpoints
+- [ ] No `.env`, secrets or stray `console.log` (use `logger`)
+- [ ] Routes mounted above `notFound`; queries scoped to the tenant
+- [ ] Schema changes called out in the PR description
+
+`schema.prisma` and `app.js` are the two files everyone touches — expect conflicts there and keep
+edits scoped to your own models.
+
+### Module owners
+
+| Owner | Area |
+| --- | --- |
+| **S M ZUNAID ALAM** | Multi-tenant RBAC · Brand profiles · Media pipeline · Link-in-Bio |
+| **KHAN FARHAN MAHDI** | Post editor · Content calendar · AI copy · Multi-platform adaptation |
+| **MD. ABIR HASAN PIASH** | Creative briefs · Asset gallery · AI image generation · Video pipeline |
+| **SHAHRIAR MOHAMMAD** | Approval workflows · Meta publishing · Performance analytics |

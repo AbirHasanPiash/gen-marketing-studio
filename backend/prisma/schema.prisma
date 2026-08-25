@@ -575,6 +575,9 @@ model QRCode {
   label      String
   targetUrl  String
   dataUrl    String? // rendered PNG data URL (cached)
+  /// Encode the tracking redirect (counts scans) instead of targetUrl directly.
+  /// Optional so codes created before this field default to tracked.
+  tracked    Boolean?
   fgColor    String   @default("#000000")
   bgColor    String   @default("#ffffff")
   scanCount  Int      @default(0)

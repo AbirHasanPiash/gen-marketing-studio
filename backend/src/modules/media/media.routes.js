@@ -78,8 +78,14 @@ router.post(
 
 router.post(
   '/destroy',
-  validate({ body: z.object({ publicId: z.string() }) }),
-  asyncHandler(async (req, res) => ok(res, await destroyMedia(req.body.publicId)))
+  validate({
+    body: z.object({
+      publicId: z.string(),
+      // Cloudinary files audio under `video` too, so callers must be able to say.
+      resourceType: z.enum(['image', 'video', 'raw']).default('image'),
+    }),
+  }),
+  asyncHandler(async (req, res) => ok(res, await destroyMedia(req.body.publicId, req.body.resourceType)))
 );
 
 /** Automated background removal (Feature 5). */
@@ -92,11 +98,22 @@ router.post(
   })
 );
 
-/** Auto-resize one asset for every platform placement (Feature 5). */
+/**
+ * Auto-resize one asset for every platform placement (Feature 5). Resizing is a
+ * Cloudinary delivery transformation, so a source that doesn't live there yet
+ * (an AI image saved straight from its provider URL) is ingested first —
+ * otherwise every "variant" would just be the original at its original size.
+ */
 router.post(
   '/platform-variants',
-  validate({ body: z.object({ publicId: z.string().optional().nullable(), url: z.string() }) }),
-  asyncHandler(async (req, res) => ok(res, platformVariants(req.body.publicId, req.body.url)))
+  validate({ body: z.object({ publicId: z.string().optional().nullable(), url: z.string().min(1) }) }),
+  asyncHandler(async (req, res) => {
+    let { publicId } = req.body;
+    if (!publicId && cloudinaryEnabled()) {
+      publicId = (await uploadMedia(req.body.url, { folder: 'mkt_studio/variants' })).publicId;
+    }
+    return ok(res, platformVariants(publicId, req.body.url));
+  })
 );
 
 /** Extract a colour palette from any image (Feature 5 brand kit helper). */

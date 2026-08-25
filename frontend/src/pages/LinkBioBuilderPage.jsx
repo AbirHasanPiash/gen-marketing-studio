@@ -18,16 +18,20 @@ export default function LinkBioBuilderPage() {
   const { activeBrandId, activeBrand } = useActiveBrand();
   const [state, setState] = useState(emptyState);
 
-  const { data } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: ['linkbio', activeBrandId],
     queryFn: () => get(`/linkbio/${activeBrandId}`),
     enabled: Boolean(activeBrandId),
   });
 
   useEffect(() => {
+    if (!activeBrandId || isFetching) return;
+    // A brand with no page yet must start from a blank slate: merging into the
+    // previous state used to carry the last brand's slug and links across, and
+    // hitting Save then copied them onto this brand.
     if (data) setState({ ...emptyState, ...data, theme: data.theme || emptyState.theme, links: data.links || [] });
-    else if (activeBrand) setState((s) => ({ ...s, title: s.title || activeBrand.name, avatarUrl: s.avatarUrl || activeBrand.logoUrl || '' }));
-  }, [data, activeBrand]);
+    else setState({ ...emptyState, title: activeBrand?.name || '', avatarUrl: activeBrand?.logoUrl || '' });
+  }, [data, isFetching, activeBrandId, activeBrand]);
 
   const save = useMutation({
     mutationFn: () => put(`/linkbio/${activeBrandId}`, {

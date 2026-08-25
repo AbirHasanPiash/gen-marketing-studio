@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { queryClient } from './lib/queryClient';
@@ -40,6 +40,12 @@ function Splash() {
       </div>
     </div>
   );
+}
+
+/** Plain <Navigate> drops the query string, which is where OAuth results ride. */
+function RedirectKeepingQuery({ to }) {
+  const { search } = useLocation();
+  return <Navigate to={{ pathname: to, search }} replace />;
 }
 
 function RequireAuth({ children }) {
@@ -90,7 +96,7 @@ function Router() {
         <Route path="/linkbio" element={<LinkBioBuilderPage />} />
         <Route path="/qr" element={<QrPage />} />
         <Route path="/connections" element={<ConnectionsPage />} />
-        <Route path="/settings/connections" element={<Navigate to="/connections" replace />} />
+        <Route path="/settings/connections" element={<RedirectKeepingQuery to="/connections" />} />
         <Route path="/publishing" element={<PublishingPage />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/team" element={<TeamPage />} />

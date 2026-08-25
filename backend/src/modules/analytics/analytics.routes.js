@@ -41,9 +41,12 @@ router.get(
       },
     });
 
+    // `when` is the publish time the whole page is keyed off, so the window has
+    // to be applied to it — filtering in the query on createdAt would drop rows
+    // whose publishedAt is inside the window (and keep ones that aren't).
     const rows = publications
       .map((p) => ({ pub: p, m: p.analytics[0], when: p.post?.publishedAt || p.publishedAt || p.createdAt }))
-      .filter((r) => r.m);
+      .filter((r) => r.m && new Date(r.when) >= since);
 
     const zeroTotals = { views: 0, impressions: 0, reach: 0, likes: 0, comments: 0, shares: 0, saves: 0, clicks: 0 };
     const totals = rows.reduce((acc, { m }) => {
@@ -142,7 +145,7 @@ router.get(
 
 router.post(
   '/sync',
-  asyncHandler(async (_req, res) => ok(res, await syncAllAnalytics()))
+  asyncHandler(async (req, res) => ok(res, await syncAllAnalytics(req.tenantId)))
 );
 
 export default router;

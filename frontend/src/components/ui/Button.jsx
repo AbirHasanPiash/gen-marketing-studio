@@ -30,10 +30,13 @@ export function buttonVariants({ variant = 'primary', size = 'md' } = {}) {
 
 export function Button({ variant, size, loading, className, children, ...props }) {
   return (
+    // `disabled` sits after the spread on purpose: with props last, any caller
+    // passing `disabled={false}` alongside `loading` re-enabled the button
+    // mid-request and let a double-click submit the form twice.
     <button
-      className={cn(buttonVariants({ variant, size }), className)}
-      disabled={loading || props.disabled}
       {...props}
+      className={cn(buttonVariants({ variant, size }), className)}
+      disabled={loading || props.disabled || undefined}
     >
       {loading && <Loader2 className="h-4 w-4 animate-spin" />}
       {children}
