@@ -35,9 +35,9 @@ export const NAV_GROUPS = [
       { to: '/images', label: 'Image Studio', icon: ImagePlus },
       { to: '/briefs', label: 'Creative Briefs', icon: FileText },
       { to: '/assets', label: 'Asset Library', icon: Images },
-       { to: '/composite', label: 'Compositing', icon: Layers },
+      { to: '/composite', label: 'Compositing', icon: Layers },
       { to: '/video', label: 'Video Studio', icon: Clapperboard },
-
+      { to: '/campaigns', label: 'Campaign Ideas', icon: Lightbulb },
     ],
   },
   {
@@ -52,6 +52,7 @@ export const NAV_GROUPS = [
   {
     label: 'Distribute',
     items: [
+      { to: '/connections', label: 'Connections', icon: PlugZap },
       { to: '/publishing', label: 'Publishing', icon: Send },
       { to: '/analytics', label: 'Analytics', icon: BarChart3 },
     ],

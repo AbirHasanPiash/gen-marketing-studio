@@ -285,5 +285,5 @@ edits scoped to your own models.
 | --- | --- |
 | **S M ZUNAID ALAM** | Multi-tenant RBAC · Brand profiles · Media pipeline · Link-in-Bio |
 | **KHAN FARHAN MAHDI** | Post editor · Content calendar · AI copy · Multi-platform adaptation |
-| **MD. ABIR HASAN PIASH** | Creative briefs · Asset gallery · AI image generation · Video pipeline |
+| **MD. ABIR HASAN PIASH** | Creative briefs · Asset gallery · AI image generation · Compositing · Video pipeline |
 | **SHAHRIAR MOHAMMAD** | Approval workflows · Meta publishing · Performance analytics |
