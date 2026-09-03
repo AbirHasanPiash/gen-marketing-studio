@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Clapperboard, Plus, Play, Loader2, Trash2, Pencil, AlertTriangle, Film, X, Download, Info,
-  Layers, Music, Timer, ArrowUp, ArrowDown,
+  Layers, Music, Timer, ArrowUp, ArrowDown, Wand2, RotateCcw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { ImageUploader } from '../components/shared/ImageUploader';
 import { AudioUploader } from '../components/shared/AudioUploader';
 import {
-  Card, CardBody, Button, Input, Field, Select, Modal, ConfirmDialog, EmptyState, Skeleton,
+  Card, CardBody, Button, Input, Textarea, Field, Select, Modal, ConfirmDialog, EmptyState, Skeleton,
 } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
 import { get, post, patch, del } from '../lib/api';
@@ -96,7 +96,7 @@ function Poster({ project, onPlay, canPlay }) {
         <div className="grid h-full place-items-center text-slate-600"><Film className="h-10 w-10" /></div>
       )}
 
-      {project.status === 'RENDERING' && (
+      {project.status === 'RENDERING' && !project.outputUrl && (
         <div className="absolute inset-0 grid place-items-center">
           <div className="flex flex-col items-center gap-2 text-white">
             <Loader2 className="h-8 w-8 animate-spin" />
@@ -104,7 +104,7 @@ function Poster({ project, onPlay, canPlay }) {
           </div>
         </div>
       )}
-      {project.status === 'FAILED' && (
+      {project.status === 'FAILED' && !project.outputUrl && (
         <div className="absolute inset-0 grid place-items-center">
           <span className="grid h-12 w-12 place-items-center rounded-full bg-amber-500/20 text-amber-300 backdrop-blur-sm">
             <AlertTriangle className="h-6 w-6" />
@@ -137,9 +137,12 @@ function Poster({ project, onPlay, canPlay }) {
   );
 }
 
-function ReelCard({ project, canRender, rendering, onPlay, onEdit, onDelete, onRender }) {
+function ReelCard({ project, canRender, rendering, onPlay, onEdit, onDelete, onRender, onRollback }) {
   const isRendering = project.status === 'RENDERING';
-  const canPlay = project.status === 'READY' && Boolean(project.outputUrl);
+  // Anything with an outputUrl is playable — including the previous render while
+  // a new one builds, or after a re-render failed.
+  const canPlay = Boolean(project.outputUrl);
+  const stale = canPlay && project.status !== 'READY';
 
   return (
     <Card className="flex flex-col overflow-hidden">
@@ -156,6 +159,14 @@ function ReelCard({ project, canRender, rendering, onPlay, onEdit, onDelete, onR
         {project.status === 'READY' && project.warning && (
           <p className="rounded-lg bg-amber-500/10 p-2 text-xs leading-relaxed text-amber-600">{project.warning}</p>
         )}
+        {stale && (
+          <p className="rounded-lg bg-emerald-500/10 p-2 text-xs leading-relaxed text-emerald-600">
+            {isRendering
+              ? 'Playing the last good render while the new one builds.'
+              : 'The last successful render is still available — press play.'}
+          </p>
+        )}
+
 
         <div className="mt-auto flex items-center gap-2 pt-1">
           <Button
@@ -173,6 +184,9 @@ function ReelCard({ project, canRender, rendering, onPlay, onEdit, onDelete, onR
             </span>
           </Button>
           <IconAction icon={Pencil} label="Edit reel" onClick={onEdit} disabled={isRendering} />
+          {project.previousUrl && (
+            <IconAction icon={RotateCcw} label="Restore previous render" onClick={onRollback} disabled={isRendering} />
+          )}
           <IconAction icon={Trash2} label="Delete reel" danger onClick={onDelete} disabled={isRendering} />
         </div>
       </CardBody>
@@ -227,6 +241,11 @@ export default function VideoPage() {
   const remove = useMutation({
     mutationFn: (id) => del(`/videos/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['videos'] }); setToDelete(null); toast.success('Reel deleted'); },
+    onError: (e) => toast.error(e.message),
+  });
+  const rollback = useMutation({
+    mutationFn: (id) => post(`/videos/${id}/rollback`),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['videos'] }); toast.success('Restored the previous render'); },
     onError: (e) => toast.error(e.message),
   });
 
@@ -289,6 +308,7 @@ export default function VideoPage() {
               onEdit={() => setEditing(v)}
               onDelete={() => setToDelete(v)}
               onRender={() => render.mutate(v.id)}
+              onRollback={() => rollback.mutate(v.id)}
             />
           ))}
         </div>
@@ -365,13 +385,21 @@ function VideoModal({ project, onClose, onSave, saving }) {
   });
   const [scenes, setScenes] = useState(
     project?.images?.length
-      ? project.images.map((image, i) => ({ image, caption: project.captions?.[i] || '' }))
-      : [{ image: '', caption: '' }]
+      ? project.images.map((image, i) => ({
+          image,
+          caption: project.captions?.[i] || '',
+          duration: project.durations?.[i] ?? Number((project.durationS / project.images.length).toFixed(2)),
+        }))
+      : [{ image: '', caption: '', duration: 10 }]
   );
+  const [regenIndex, setRegenIndex] = useState(null);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const updateScene = (i, key, val) => setScenes((s) => s.map((sc, x) => (x === i ? { ...sc, [key]: val } : sc)));
-  const addScene = () => setScenes((s) => (s.length < 6 ? [...s, { image: '', caption: '' }] : s));
+  const addScene = () =>
+    setScenes((s) =>
+      s.length < 6 ? [...s, { image: '', caption: '', duration: Number((form.durationS / (s.length + 1)).toFixed(2)) }] : s
+    );
   const removeScene = (i) => setScenes((s) => s.filter((_, x) => x !== i));
   const move = (i, dir) => setScenes((s) => {
     const arr = [...s];
@@ -382,11 +410,37 @@ function VideoModal({ project, onClose, onSave, saving }) {
   });
 
   const filled = scenes.filter((s) => s.image);
-  const perScene = filled.length ? (form.durationS / filled.length).toFixed(1) : null;
+  const total = Number(filled.reduce((a, s) => a + Number(s.duration || 0), 0).toFixed(2));
+  const delta = Number((total - form.durationS).toFixed(2));
+  // Floats never sum exactly (10/3 three times is 9.999), so compare within a
+  // tolerance — the same one the server uses.
+  const balanced = Math.abs(delta) <= 0.05 && filled.every((s) => Number(s.duration) >= 0.5);
+
+  /** The old behaviour, now on demand. */
+  const splitEvenly = () => {
+    const per = Number((form.durationS / (scenes.length || 1)).toFixed(2));
+    setScenes((s) => s.map((sc) => ({ ...sc, duration: per })));
+  };
+  /** Push the whole difference into the last scene so the total lands exactly. */
+  const fixLast = () =>
+    setScenes((s) => {
+      if (!s.length) return s;
+      const arr = [...s];
+      const last = arr.length - 1;
+      const others = arr.slice(0, last).reduce((a, x) => a + Number(x.duration || 0), 0);
+      arr[last] = { ...arr[last], duration: Number(Math.max(0.5, form.durationS - others).toFixed(2)) };
+      return arr;
+    });
 
   const submit = () => {
     if (!filled.length) return toast.error('Add at least one scene image');
-    onSave({ ...form, images: filled.map((s) => s.image), captions: filled.map((s) => s.caption) });
+    if (!balanced) return toast.error(`Scene durations add up to ${total}s, not ${form.durationS}s`);
+    onSave({
+      ...form,
+      images: filled.map((s) => s.image),
+      captions: filled.map((s) => s.caption),
+      durations: filled.map((s) => Number(s.duration)),
+    });
     return undefined;
   };
 
@@ -395,7 +449,7 @@ function VideoModal({ project, onClose, onSave, saving }) {
       open
       onClose={onClose}
       title={project ? 'Edit reel' : 'New promo reel'}
-      subtitle={perScene ? `${filled.length} ${filled.length === 1 ? 'scene' : 'scenes'} · about ${perScene}s each` : 'Add up to six scenes'}
+      subtitle={filled.length ? `${filled.length} ${filled.length === 1 ? 'scene' : 'scenes'} · ${total}s of ${form.durationS}s` : 'Add up to six scenes'}
       size="xl"
       footer={
         <>
@@ -418,7 +472,7 @@ function VideoModal({ project, onClose, onSave, saving }) {
               <option value="16:9">16:9 — Wide</option>
             </Select>
           </Field>
-          <Field label="Duration" hint={perScene ? `${perScene}s per scene` : 'seconds'}>
+          <Field label="Total duration" hint="seconds">
             <Input type="number" min={5} max={30} value={form.durationS} onChange={(e) => set('durationS', Number(e.target.value))} />
           </Field>
           <Field label="Soundtrack" hint="optional" className="sm:col-span-2">
@@ -432,6 +486,22 @@ function VideoModal({ project, onClose, onSave, saving }) {
             <span className="text-xs text-muted">{scenes.length} of 6</span>
           </div>
 
+          {/* Recompute + validate the timeline before a render is allowed. */}
+          <div
+            className={cn(
+              'mb-3 flex flex-wrap items-center gap-2 rounded-xl border p-3 text-sm',
+              balanced ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/40 bg-amber-500/10'
+            )}
+          >
+            <span className="font-medium text-fg">
+              {total}s of {form.durationS}s
+              {!balanced && <span className="ml-2 text-amber-600">({delta > 0 ? '+' : ''}{delta}s)</span>}
+            </span>
+            <Button size="sm" variant="ghost" className="ml-auto" onClick={splitEvenly}>Split evenly</Button>
+            <Button size="sm" variant="ghost" onClick={fixLast} disabled={balanced}>Fix last scene</Button>
+          </div>
+
+            
           <div className="space-y-3">
             {scenes.map((sc, i) => (
               // Stacks under 640px so the thumbnail and caption never fight for width.
@@ -449,9 +519,24 @@ function VideoModal({ project, onClose, onSave, saving }) {
                   <Field label={`Scene ${i + 1} caption`} hint="optional">
                     <Input value={sc.caption} onChange={(e) => updateScene(i, 'caption', e.target.value)} placeholder="This Eid, wear heritage." />
                   </Field>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-end gap-2">
+                    <Field label="Seconds" className="w-24">
+                      <Input
+                        type="number"
+                        min={0.5}
+                        max={30}
+                        step={0.5}
+                        value={sc.duration}
+                        onChange={(e) => updateScene(i, 'duration', Number(e.target.value))}
+                      />
+                    </Field>
                     <IconAction icon={ArrowUp} label="Move scene up" onClick={() => move(i, -1)} disabled={i === 0} />
                     <IconAction icon={ArrowDown} label="Move scene down" onClick={() => move(i, 1)} disabled={i === scenes.length - 1} />
+                    {project?.id && (
+                      <Button size="sm" variant="subtle" onClick={() => setRegenIndex(i)}>
+                        <Wand2 className="h-3.5 w-3.5" /> Regenerate
+                      </Button>
+                    )}
                     {scenes.length > 1 && (
                       <button
                         type="button"
@@ -472,6 +557,93 @@ function VideoModal({ project, onClose, onSave, saving }) {
               <Plus className="h-4 w-4" /> Add scene
             </Button>
           )}
+        </div>
+      </div>
+
+      {regenIndex !== null && (
+        <RegenerateSceneDialog
+          index={regenIndex}
+          scene={scenes[regenIndex]}
+          projectId={project.id}
+          onClose={() => setRegenIndex(null)}
+          onDone={onClose}
+        />
+      )}
+    </Modal>
+  );
+}
+
+/**
+ * Regenerate one scene. The server swaps that scene and re-renders, but only this
+ * scene's segment is re-encoded — its content hash changed, the others didn't.
+ */
+function RegenerateSceneDialog({ index, scene, projectId, onClose, onDone }) {
+  const qc = useQueryClient();
+  const [prompt, setPrompt] = useState('');
+  const [image, setImage] = useState('');
+  const [caption, setCaption] = useState(scene.caption || '');
+  const [duration, setDuration] = useState(scene.duration);
+
+  const regenerate = useMutation({
+    mutationFn: (body) => post(`/videos/${projectId}/scenes/${index}/regenerate`, body),
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ['videos'] });
+      toast.success(`Scene ${res.regeneratedScene + 1} regenerated — re-encoding just that scene`);
+      onClose();
+      onDone?.();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const untouched =
+    !prompt.trim() && !image && caption === (scene.caption || '') && Number(duration) === Number(scene.duration);
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title={`Regenerate scene ${index + 1}`}
+      subtitle="Only this scene is re-encoded — the rest of the reel is copied from the segment cache."
+      size="md"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button
+            loading={regenerate.isPending}
+            disabled={untouched}
+            onClick={() =>
+              regenerate.mutate({
+                caption,
+                duration: Number(duration),
+                ...(prompt.trim() ? { prompt: prompt.trim() } : {}),
+                ...(image ? { image } : {}),
+              })
+            }
+          >
+            <Wand2 className="h-4 w-4" /> Regenerate &amp; render
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="New still from a prompt" hint="optional">
+          <Textarea
+            rows={3}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="the same saree folded on a marble step, golden hour…"
+          />
+        </Field>
+        <Field label="…or upload a replacement still">
+          <div className="w-28">
+            <ImageUploader value={image} onChange={setImage} folder="video" aspect="aspect-[9/16]" />
+          </div>
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Caption"><Input value={caption} onChange={(e) => setCaption(e.target.value)} /></Field>
+          <Field label="Seconds">
+            <Input type="number" min={0.5} max={30} step={0.5} value={duration} onChange={(e) => setDuration(e.target.value)} />
+          </Field>
         </div>
       </div>
     </Modal>

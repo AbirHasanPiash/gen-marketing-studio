@@ -4,6 +4,15 @@
 // Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
+
+// one time, or after any schema.prisma change
+// npm --prefix backend run prisma:generate
+// npm --prefix backend run prisma:push
+
+// npm run dev 
+
+// frontend live at http://localhost:5173
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -79,6 +88,7 @@ enum SocialPlatform {
   FACEBOOK
   INSTAGRAM
 }
+
 
 enum NotificationType {
   APPROVAL_REQUEST
@@ -322,11 +332,13 @@ model CreativeBrief {
   mood       String? // e.g. festive, calm, energetic
   palette    String? // hint palette
   references String[]    @default([]) // reference image URLs
+  tags       String[]    @default([]) // free-form labels, normalised lowercase on write
   notes      String?
   prompt     String? // resolved prompt used for generation
   status     BriefStatus @default(DRAFT)
   createdAt  DateTime    @default(now())
   updatedAt  DateTime    @updatedAt
+  isDuplicate Boolean?
 
   tenantId String @db.ObjectId
   tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -602,9 +614,15 @@ model VideoProject {
   title      String
   images     String[]    @default([]) // ordered source image URLs
   captions   String[]    @default([]) // overlay text per scene
+  /// Per-scene seconds, index-aligned with `images`. Empty = fall back to an
+  /// even split of `durationS`, so reels created before this field still render.
+  durations   Float[]    @default([])
   audioUrl   String?
   outputUrl  String?
-  durationS  Int         @default(10)
+  /// The render `outputUrl` replaced. A new render is only published on success,
+  /// so a failed one can never take away the video the user can currently play.
+  previousUrl String?
+  durationS  Int         @default(10) // target total runtime
   aspect     String      @default("9:16")
   status     VideoStatus @default(DRAFT)
   error      String?

@@ -27,7 +27,7 @@ const assetBody = z.object({
   parentAssetId: z.string().optional().nullable(),
 });
 
-// --- Text-to-image generation (Feature 7) ----------------------------------
+// --- Text-to-image generation (Feature 7) --------------
 
 router.get('/sizes', (_req, res) => ok(res, SIZE_PRESETS));
 

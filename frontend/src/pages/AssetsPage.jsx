@@ -103,7 +103,7 @@ function AssetModal({ asset, onClose }) {
 
   // Versions hang off the root asset, so opening a child (a v2 thumbnail in the
   // grid) has to resolve back to the root to see the whole chain. When the
-  // opened asset *is* the root this reuses the query above rather than refetching.
+  // opened asset *is* the root this reuses the query above rather than refetching
   const rootId = full?.parentAssetId || asset.id;
   const { data: root } = useQuery({
     queryKey: ['asset', rootId],

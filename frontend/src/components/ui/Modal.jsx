@@ -6,15 +6,24 @@ import { Button } from './Button';
 
 const SIZES = { sm: 'max-w-md', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl', full: 'max-w-6xl' };
 
+/**
+ * How many modals are open. Modals nest (a picker inside a detail dialog), and
+ * without a count the inner one restoring `overflow` on unmount let the page
+ * scroll behind the outer one that was still open.
+ */
+let openCount = 0;
+
 export function Modal({ open, onClose, title, subtitle, children, footer, size = 'md', className }) {
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (e) => e.key === 'Escape' && onClose?.();
     document.addEventListener('keydown', onKey);
+    openCount += 1;
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
+      openCount -= 1;
+      if (openCount === 0) document.body.style.overflow = '';
     };
   }, [open, onClose]);
 

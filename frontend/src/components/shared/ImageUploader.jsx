@@ -119,7 +119,7 @@ export function ImageUploader({ value, onChange, folder = 'uploads', aspect = 'a
 
   return (
     /* The dialog is a sibling of the dropzone: React portals still bubble events
-       through the component tree, so nesting it would re-open the file picker. */
+      through the component tree, so nesting it would re-open the file picker. */
     <>
       <div
         onClick={() => inputRef.current?.click()}

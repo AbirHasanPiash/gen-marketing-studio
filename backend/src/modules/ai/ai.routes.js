@@ -84,7 +84,7 @@ router.post(
   })
 );
 
-// --- "Generate 5 variations" (Feature 6) -----------------------------------
+// --- "Generate 5 variations" (Feature 6) 
 
 router.post(
   '/copy/variations',
