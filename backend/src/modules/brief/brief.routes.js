@@ -94,12 +94,6 @@ router.get(
 
 /**
  * Add and/or remove tags across many briefs at once.
- *
- * Prisma's Mongo connector can `push` onto a scalar list but has no `pull`, and
- * `updateMany` cannot compute a per-document value — so removal has to be
- * read-modify-write per brief. The writes go in one $transaction, so a partial
- * application is impossible, and no-ops are skipped so the response can report
- * what actually changed.
  */
 router.post(
   '/bulk/tags',
@@ -174,8 +168,6 @@ router.post(
 
 /**
  * Duplicate a brief as the starting point for a new one. The copy carries the
- * creative *inputs*; it deliberately does not carry the *outputs* — `prompt` and
- * `status` reset, and the source's generated assets stay with the source.
  */
 router.post(
   '/:id/duplicate',
