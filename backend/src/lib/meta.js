@@ -190,7 +190,7 @@ export async function publishToInstagram({ igBusinessId, accessToken, caption, i
 }
 
 /** Fetch engagement insights for a published item (Feature 15). */
-export async function getInsights({ platform, externalId, accessToken, igBusinessId }) {
+export async function getInsights({ platform, externalId, accessToken }) {
   if (isMockToken(accessToken) || !metaEnabled()) {
     const r = (min, max) => Math.floor(min + Math.random() * (max - min));
     const impressions = r(400, 9000);

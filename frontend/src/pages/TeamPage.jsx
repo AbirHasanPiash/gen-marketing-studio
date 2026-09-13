@@ -1,18 +1,19 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, UserPlus, Shield, Crown, Pencil } from 'lucide-react';
+import { Users, UserPlus, Shield, Crown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { Card, CardBody, Button, Input, Field, Select, Modal, Avatar, Badge, Switch, EmptyState, Skeleton } from '../components/ui';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useAuth } from '../store/auth';
 import { get, post, patch } from '../lib/api';
-import { fmtDate } from '../lib/utils';
 
 export default function TeamPage() {
   const qc = useQueryClient();
   const me = useAuth((s) => s.user);
   const isOwner = me?.role === 'OWNER';
   const [inviting, setInviting] = useState(false);
+  useDocumentTitle('Team');
 
   const { data: users, isLoading } = useQuery({ queryKey: ['team'], queryFn: () => get('/auth/users') });
 
@@ -78,11 +79,11 @@ function InviteModal({ onClose, onSave, saving }) {
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   return (
     <Modal open onClose={onClose} title="Add team member" size="md"
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => onSave(form)} loading={saving} disabled={!form.name || !form.email || form.password.length < 6}>Add member</Button></>}>
+      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => onSave(form)} loading={saving} disabled={!form.name || !form.email || form.password.length < 8}>Add member</Button></>}>
       <div className="space-y-4">
         <Field label="Name"><Input value={form.name} onChange={set('name')} placeholder="Rohan Ahmed" /></Field>
         <Field label="Email"><Input type="email" value={form.email} onChange={set('email')} placeholder="creator@brand.com" /></Field>
-        <Field label="Temporary password" hint="min 6 chars"><Input type="text" value={form.password} onChange={set('password')} placeholder="Share with them to sign in" /></Field>
+        <Field label="Temporary password" hint="min 8 chars"><Input type="text" value={form.password} onChange={set('password')} placeholder="Share with them to sign in" /></Field>
         <Field label="Role"><Select value={form.role} onChange={set('role')}><option value="CREATOR">Creator — drafts & submits</option><option value="OWNER">Owner — approves & publishes</option></Select></Field>
       </div>
     </Modal>

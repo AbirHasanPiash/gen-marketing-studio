@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { QrCode, Plus, Download, Trash2, ScanLine, ExternalLink } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
-import { Card, CardBody, Button, Input, Field, Switch, Modal, EmptyState, Skeleton } from '../components/ui';
+import { Card, CardBody, Button, Input, Field, Switch, Modal, ConfirmDialog, EmptyState, Skeleton } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { get, post, del } from '../lib/api';
 import { truncate } from '../lib/utils';
 
@@ -12,6 +13,8 @@ export default function QrPage() {
   const qc = useQueryClient();
   const { activeBrandId } = useActiveBrand();
   const [creating, setCreating] = useState(false);
+  const [toDelete, setToDelete] = useState(null);
+  useDocumentTitle('QR Codes');
 
   const { data: codes, isLoading } = useQuery({
     queryKey: ['qr', activeBrandId],
@@ -26,7 +29,8 @@ export default function QrPage() {
   });
   const remove = useMutation({
     mutationFn: (id) => del(`/qr/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['qr'] }); toast.success('Deleted'); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['qr'] }); setToDelete(null); toast.success('QR code deleted'); },
+    onError: (e) => toast.error(e.message),
   });
 
   return (
@@ -52,7 +56,7 @@ export default function QrPage() {
                   <span className="flex items-center gap-1 text-xs text-muted"><ScanLine className="h-3.5 w-3.5" /> {c.scanCount} scans</span>
                   <div className="flex gap-1">
                     <a href={c.dataUrl} download={`qr-${c.label}.png`}><Button size="icon-sm" variant="ghost"><Download className="h-4 w-4" /></Button></a>
-                    <Button size="icon-sm" variant="ghost" className="text-red-500" onClick={() => remove.mutate(c.id)}><Trash2 className="h-4 w-4" /></Button>
+                    <Button size="icon-sm" variant="ghost" className="text-red-500" aria-label={`Delete ${c.label}`} onClick={() => setToDelete(c)}><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 </div>
               </CardBody>
@@ -65,6 +69,17 @@ export default function QrPage() {
       )}
 
       {creating && <QrModal onClose={() => setCreating(false)} onSave={(c) => create.mutate(c)} saving={create.isPending} />}
+
+      <ConfirmDialog
+        open={Boolean(toDelete)}
+        onClose={() => setToDelete(null)}
+        onConfirm={() => remove.mutate(toDelete.id)}
+        title={`Delete “${toDelete?.label}”?`}
+        message="Printed copies of this code will stop working immediately."
+        confirmLabel="Delete QR code"
+        danger
+        loading={remove.isPending}
+      />
     </div>
   );
 }
@@ -77,7 +92,9 @@ function QrModal({ onClose, onSave, saving }) {
       footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={() => onSave(form)} loading={saving} disabled={!form.label || !form.targetUrl}>Generate</Button></>}>
       <div className="space-y-4">
         <Field label="Label"><Input value={form.label} onChange={set('label')} placeholder="Eid campaign" /></Field>
-        <Field label="Target URL"><Input value={form.targetUrl} onChange={set('targetUrl')} placeholder="https://…" /></Field>
+        <Field label="Target URL" hint="must start with http:// or https://">
+          <Input type="url" inputMode="url" value={form.targetUrl} onChange={set('targetUrl')} placeholder="https://…" />
+        </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Foreground"><input type="color" value={form.fgColor} onChange={set('fgColor')} className="h-10 w-full rounded-lg border border-border" /></Field>
           <Field label="Background"><input type="color" value={form.bgColor} onChange={set('bgColor')} className="h-10 w-full rounded-lg border border-border" /></Field>

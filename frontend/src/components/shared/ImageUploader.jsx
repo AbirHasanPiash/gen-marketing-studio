@@ -18,7 +18,7 @@ const isUsableUrl = (value) => {
  * Image picker with drag-drop + URL entry. Uploads to Cloudinary via the
  * backend (falls back to the data URI in mock mode) and returns the URL.
  */
-export function ImageUploader({ value, onChange, folder = 'uploads', aspect = 'aspect-video', className, upload = true }) {
+export function ImageUploader({ id, value, onChange, folder = 'uploads', aspect = 'aspect-video', className, upload = true }) {
   const inputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -99,7 +99,7 @@ export function ImageUploader({ value, onChange, folder = 'uploads', aspect = 'a
 
   if (value) {
     return (
-      <div className={cn('relative group overflow-hidden rounded-xl border border-border bg-elevated', aspect, className)}>
+      <div id={id} className={cn('relative group overflow-hidden rounded-xl border border-border bg-elevated', aspect, className)}>
         <img src={value} alt="" className="h-full w-full object-cover" />
         {loading && (
           <div className="absolute inset-0 grid place-items-center bg-slate-950/40">
@@ -122,7 +122,17 @@ export function ImageUploader({ value, onChange, folder = 'uploads', aspect = 'a
       through the component tree, so nesting it would re-open the file picker. */
     <>
       <div
+        id={id}
+        role="button"
+        tabIndex={0}
+        aria-label="Choose an image"
         onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);

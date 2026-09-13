@@ -1,11 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PlugZap, Plus, Unplug, CheckCircle2, Info } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
-import { Card, CardHeader, CardBody, Button, EmptyState, Skeleton, PlatformDot } from '../components/ui';
+import { Card, CardHeader, CardBody, Button, ConfirmDialog, EmptyState, Skeleton } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { get, post, del } from '../lib/api';
 import { fmtDate } from '../lib/utils';
 
@@ -13,6 +14,8 @@ export default function ConnectionsPage() {
   const qc = useQueryClient();
   const { activeBrandId, activeBrand } = useActiveBrand();
   const [params, setParams] = useSearchParams();
+  const [toDisconnect, setToDisconnect] = useState(null);
+  useDocumentTitle('Connections');
 
   useEffect(() => {
     if (params.get('connected')) { toast.success('Account connected 🎉'); setParams({}); }
@@ -42,7 +45,12 @@ export default function ConnectionsPage() {
 
   const disconnect = useMutation({
     mutationFn: (id) => del(`/social/accounts/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['social'] }); toast.success('Disconnected'); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['social'] });
+      setToDisconnect(null);
+      toast.success('Disconnected');
+    },
+    onError: (e) => toast.error(e.message),
   });
 
   return (
@@ -87,7 +95,7 @@ export default function ConnectionsPage() {
                     <p className="font-medium text-fg truncate">{a.name}</p>
                     <p className="flex items-center gap-1.5 text-xs text-muted"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Connected {fmtDate(a.createdAt)}</p>
                   </div>
-                  <Button size="sm" variant="ghost" className="text-red-500" onClick={() => disconnect.mutate(a.id)}><Unplug className="h-4 w-4" /> Disconnect</Button>
+                  <Button size="sm" variant="ghost" className="text-red-500" onClick={() => setToDisconnect(a)}><Unplug className="h-4 w-4" /> Disconnect</Button>
                 </div>
               ))}
             </div>
@@ -96,6 +104,17 @@ export default function ConnectionsPage() {
           )}
         </CardBody>
       </Card>
+
+      <ConfirmDialog
+        open={Boolean(toDisconnect)}
+        onClose={() => setToDisconnect(null)}
+        onConfirm={() => disconnect.mutate(toDisconnect.id)}
+        title={`Disconnect ${toDisconnect?.name}?`}
+        message="Scheduled posts targeting this account will fail until you reconnect it."
+        confirmLabel="Disconnect"
+        danger
+        loading={disconnect.isPending}
+      />
     </div>
   );
 }

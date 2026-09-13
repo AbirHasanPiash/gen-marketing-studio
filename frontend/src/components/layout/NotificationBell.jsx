@@ -37,15 +37,16 @@ export function NotificationBell() {
   return (
     <Menu
       width="w-80"
+      label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
       trigger={() => (
-        <button className="relative grid h-10 w-10 place-items-center rounded-xl text-muted hover:bg-elevated hover:text-fg transition">
+        <span className="relative grid h-10 w-10 place-items-center rounded-xl text-muted transition hover:bg-elevated hover:text-fg">
           <Bell className="h-5 w-5" />
           {unread > 0 && (
             <span className="absolute top-1.5 right-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
               {unread > 9 ? '9+' : unread}
             </span>
           )}
-        </button>
+        </span>
       )}
     >
       <div className="flex items-center justify-between px-2 py-1.5">

@@ -2,7 +2,9 @@ import { Router } from 'express';
 import { prisma } from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
 import { asyncHandler, ok } from '../../utils/http.js';
-import { ensureOwned } from '../../utils/scope.js';
+import { validate } from '../../middleware/validate.js';
+import { objectId } from '../../utils/validators.js';
+import { z } from 'zod';
 
 const router = Router();
 router.use(authenticate);
@@ -24,6 +26,7 @@ router.get(
 
 router.patch(
   '/:id/read',
+  validate({ params: z.object({ id: objectId('notification id') }) }),
   asyncHandler(async (req, res) => {
     const n = await prisma.notification.findFirst({ where: { id: req.params.id, userId: req.user.id } });
     if (!n) return ok(res, { updated: false });

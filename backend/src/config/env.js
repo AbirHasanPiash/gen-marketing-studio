@@ -66,11 +66,6 @@ export const env = {
     },
   },
 
-  // Backwards-compatible alias for modules that still import the Groq helper.
-  get groq() {
-    return this.openRouter;
-  },
-
   image: {
     provider: (process.env.IMAGE_PROVIDER || 'pollinations').toLowerCase(),
     stabilityKey: process.env.STABILITY_API_KEY || '',
@@ -95,5 +90,26 @@ export const env = {
 
   verbose: bool(process.env.VERBOSE),
 };
+
+const DEV_JWT_SECRET = 'dev-insecure-secret-change-me';
+const DEV_ENCRYPTION_KEY = '0'.repeat(64);
+
+/**
+ * Fail fast rather than booting a production deploy that signs sessions with a
+ * public constant, or one that "encrypts" Meta tokens with an all-zero key.
+ * Both are silent in development and catastrophic in production.
+ */
+export function assertProductionConfig() {
+  if (!env.isProd) return;
+  const problems = [];
+  if (!env.databaseUrl) problems.push('DATABASE_URL is not set');
+  if (env.jwt.secret === DEV_JWT_SECRET) problems.push('JWT_SECRET is still the development default');
+  if (env.tokenEncryptionKey === DEV_ENCRYPTION_KEY) {
+    problems.push('TOKEN_ENCRYPTION_KEY is still the development default (`openssl rand -hex 32`)');
+  }
+  if (problems.length) {
+    throw new Error(`Refusing to start in production:\n  - ${problems.join('\n  - ')}`);
+  }
+}
 
 export default env;

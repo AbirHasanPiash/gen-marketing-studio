@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { Card, CardHeader, CardBody, Button, Input, Textarea, Field, Select, Tabs, Badge } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { streamPost } from '../lib/stream';
 import { get, post } from '../lib/api';
 import { copyToClipboard, cn, timeAgo } from '../lib/utils';
@@ -62,6 +63,7 @@ export default function CopyStudioPage() {
   const [streaming, setStreaming] = useState(false);
   const [variations, setVariations] = useState([]);
   const [copiedIdx, setCopiedIdx] = useState(null);
+  useDocumentTitle('Copy Studio');
 
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
   const platformEnum = { Instagram: 'INSTAGRAM', Facebook: 'FACEBOOK', WhatsApp: 'WHATSAPP' };

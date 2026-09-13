@@ -9,8 +9,9 @@ import {
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { StatCard } from '../components/shared/StatCard';
-import { Card, CardHeader, CardBody, Button, Tabs, Badge, EmptyState, Skeleton, PlatformDot } from '../components/ui';
+import { Card, CardHeader, CardBody, Button, Tabs, EmptyState, Skeleton, PlatformDot } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { get, post } from '../lib/api';
 import { compactNumber, PLATFORM_META } from '../lib/utils';
 
@@ -22,6 +23,7 @@ export default function AnalyticsPage() {
   const qc = useQueryClient();
   const { activeBrandId } = useActiveBrand();
   const [days, setDays] = useState('30');
+  useDocumentTitle('Analytics');
 
   const { data, isLoading } = useQuery({
     queryKey: ['analytics', activeBrandId, days],
@@ -67,7 +69,7 @@ export default function AnalyticsPage() {
             <CardHeader title="Engagement over time" subtitle={`Last ${days} days`} />
             <CardBody>
               <ResponsiveContainer width="100%" height={260}>
-                <AreaChart data={data.timeseries} margin={{ left: -18, right: 8, top: 8 }}>
+                <AreaChart data={data.timeseries} margin={{ left: 0, right: 8, top: 8 }}>
                   <defs>
                     <linearGradient id="a1" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor={BRAND} stopOpacity={0.32} />
@@ -90,10 +92,10 @@ export default function AnalyticsPage() {
               <CardHeader title="Best day to post" subtitle={bestTime?.bestDay?.engagement ? `${bestTime.bestDay.label} performs best` : 'By weekday'} action={<CalendarClock className="h-4 w-4 text-muted" />} />
               <CardBody>
                 <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={bestTime?.byWeekday} margin={{ left: -18, right: 8, top: 8 }}>
+                  <BarChart data={bestTime?.byWeekday} margin={{ left: 0, right: 8, top: 8 }}>
                     <CartesianGrid stroke="rgb(var(--border))" strokeOpacity={0.5} vertical={false} />
                     <XAxis dataKey="label" tick={axisTick} axisLine={false} tickLine={false} />
-                    <YAxis tick={axisTick} axisLine={false} tickLine={false} width={36} />
+                    <YAxis tick={axisTick} axisLine={false} tickLine={false} width={44} allowDecimals={false} />
                     <RTooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgb(var(--muted))', fillOpacity: 0.06 }} />
                     <Bar dataKey="engagement" radius={[4, 4, 0, 0]}>
                       {bestTime?.byWeekday?.map((d) => (
@@ -109,10 +111,10 @@ export default function AnalyticsPage() {
               <CardHeader title="Best hour to post" subtitle={bestTime?.bestHour ? `Peak around ${bestTime.bestHour.hour}:00` : 'By hour'} action={<Clock className="h-4 w-4 text-muted" />} />
               <CardBody>
                 <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={bestTime?.byHour} margin={{ left: -18, right: 8, top: 8 }}>
+                  <BarChart data={bestTime?.byHour} margin={{ left: 0, right: 8, top: 8 }}>
                     <CartesianGrid stroke="rgb(var(--border))" strokeOpacity={0.5} vertical={false} />
                     <XAxis dataKey="hour" tick={axisTick} axisLine={false} tickLine={false} interval={2} tickFormatter={(h) => `${h}h`} />
-                    <YAxis tick={axisTick} axisLine={false} tickLine={false} width={36} />
+                    <YAxis tick={axisTick} axisLine={false} tickLine={false} width={44} allowDecimals={false} />
                     <RTooltip contentStyle={tooltipStyle} cursor={{ fill: 'rgb(var(--muted))', fillOpacity: 0.06 }} labelFormatter={(h) => `${h}:00`} />
                     <Bar dataKey="engagement" radius={[4, 4, 0, 0]}>
                       {bestTime?.byHour?.map((d) => (
@@ -152,7 +154,7 @@ export default function AnalyticsPage() {
                 {data.byPlatform?.length ? (
                   <div className="space-y-4">
                     <ResponsiveContainer width="100%" height={160}>
-                      <BarChart data={data.byPlatform} margin={{ left: -18, right: 8, top: 8 }}>
+                      <BarChart data={data.byPlatform} margin={{ left: 0, right: 8, top: 8 }}>
                         <CartesianGrid stroke="rgb(var(--border))" strokeOpacity={0.5} vertical={false} />
                         <XAxis dataKey="platform" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={(p) => PLATFORM_META[p]?.label || p} />
                         <YAxis tick={axisTick} axisLine={false} tickLine={false} width={40} tickFormatter={compactNumber} />

@@ -1,7 +1,10 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { prisma } from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { validate } from '../../middleware/validate.js';
 import { asyncHandler, ok } from '../../utils/http.js';
+import { queryObjectId } from '../../utils/validators.js';
 import { syncAllAnalytics } from './analytics.service.js';
 
 const router = Router();
@@ -17,9 +20,14 @@ const dayKey = (d) => new Date(d).toISOString().slice(0, 10);
  */
 router.get(
   '/overview',
+  validate({
+    query: z.object({
+      brandId: queryObjectId('brandId'),
+      days: z.coerce.number().int().min(1).max(180).default(30),
+    }),
+  }),
   asyncHandler(async (req, res) => {
-    const { brandId } = req.query;
-    const days = Math.min(180, Number(req.query.days) || 30);
+    const { brandId, days } = req.query;
     const since = new Date(Date.now() - days * 86400_000);
 
     const publications = await prisma.publication.findMany({
@@ -27,6 +35,16 @@ router.get(
         tenantId: req.tenantId,
         status: 'SUCCESS',
         ...(brandId ? { post: { brandId } } : {}),
+        // `when` below picks the first of post.publishedAt / publishedAt /
+        // createdAt that is set, so a row that survives the JS filter must have
+        // at least one of them inside the window. Narrowing on that OR keeps
+        // the result identical while letting the database drop old rows,
+        // instead of loading every publication a workspace has ever made.
+        OR: [
+          { post: { publishedAt: { gte: since } } },
+          { publishedAt: { gte: since } },
+          { createdAt: { gte: since } },
+        ],
       },
       include: {
         analytics: { orderBy: { capturedAt: 'desc' }, take: 1 },
@@ -42,8 +60,8 @@ router.get(
     });
 
     // `when` is the publish time the whole page is keyed off, so the window has
-    // to be applied to it — filtering in the query on createdAt would drop rows
-    // whose publishedAt is inside the window (and keep ones that aren't).
+    // to be applied to it — a row can match the OR above on a field the JS
+    // below doesn't end up choosing.
     const rows = publications
       .map((p) => ({ pub: p, m: p.analytics[0], when: p.post?.publishedAt || p.publishedAt || p.createdAt }))
       .filter((r) => r.m && new Date(r.when) >= since);

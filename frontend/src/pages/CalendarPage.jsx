@@ -13,6 +13,7 @@ import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { Card, Button, StatusBadge, PlatformDot, Tabs, EmptyState } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { get, patch } from '../lib/api';
 import { cn } from '../lib/utils';
 
@@ -85,6 +86,7 @@ export default function CalendarPage() {
   const [view, setView] = useState('month');
   const [cursor, setCursor] = useState(new Date());
   const [dragging, setDragging] = useState(null);
+  useDocumentTitle('Content Calendar');
 
   const range = useMemo(() => {
     if (view === 'week') return { start: startOfWeek(cursor), end: endOfWeek(cursor) };
@@ -100,18 +102,19 @@ export default function CalendarPage() {
     enabled: Boolean(activeBrandId),
   });
 
-  const scheduled = data?.scheduled || [];
   const unscheduled = data?.unscheduled || [];
 
+  // Keyed off `data` itself: `data?.scheduled || []` produces a new array on
+  // every render, so a memo depending on it never actually memoised anything.
   const byDay = useMemo(() => {
     const map = {};
-    scheduled.forEach((p) => {
+    (data?.scheduled || []).forEach((p) => {
       if (!p.scheduledAt) return;
       const k = dayKey(new Date(p.scheduledAt));
       (map[k] ||= []).push(p);
     });
     return map;
-  }, [scheduled]);
+  }, [data]);
 
   const reschedule = useMutation({
     mutationFn: ({ id, scheduledAt }) => patch(`/posts/${id}/reschedule`, { scheduledAt }),

@@ -2,15 +2,29 @@
   "name": "generative-marketing-studio",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "AI-powered social marketing studio for local brands",
+  "workspaces": [],
   "scripts": {
     "dev": "concurrently -n api,web -c magenta,cyan \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\"",
     "install:all": "npm install && npm --prefix backend install && npm --prefix frontend install",
     "db:setup": "npm --prefix backend run db:setup",
     "seed": "npm --prefix backend run seed",
-    "build": "npm --prefix frontend run build"
+    "build": "npm --prefix frontend run build",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "npm run lint && npm test && npm run build"
   },
   "devDependencies": {
-    "concurrently": "^9.1.0"
+    "@eslint/js": "^9.39.5",
+    "concurrently": "^9.1.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^15.15.0",
+    "vitest": "^2.1.9"
   }
 }

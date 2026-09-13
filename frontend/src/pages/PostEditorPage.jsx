@@ -6,17 +6,28 @@ import {
   Wand2, MessageCircle, History, Copy, Trash2, X, Undo2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { PageHeader } from '../components/shared/PageHeader';
 import { ImageUploader } from '../components/shared/ImageUploader';
 import { RejectDialog } from '../components/shared/RejectDialog';
 import {
   Card, CardHeader, CardBody, Button, Input, Textarea, Field, Select, StatusBadge, PlatformDot,
-  Modal, UnderlineTabs, Avatar, Spinner,
+  Modal, ConfirmDialog, UnderlineTabs, Spinner,
 } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useAuth } from '../store/auth';
 import { get, post, patch, del } from '../lib/api';
-import { PLATFORM_META, fmtDateTime, timeAgo, copyToClipboard, cn } from '../lib/utils';
+import { PLATFORM_META, activityVerb, timeAgo, copyToClipboard, cn } from '../lib/utils';
+
+/** Past-tense label per action — "submit" + "ed" spells "submited". */
+const ACTION_DONE = {
+  submit: 'submitted for review',
+  approve: 'approved',
+  reject: 'sent back for changes',
+  schedule: 'scheduled',
+  unschedule: 'unscheduled',
+  publish: 'publishing now',
+  archive: 'archived',
+};
 
 const PLATFORMS = ['FACEBOOK', 'INSTAGRAM', 'WHATSAPP'];
 const toLocalInput = (d) => {
@@ -42,6 +53,7 @@ export default function PostEditorPage() {
   const [hashtagInput, setHashtagInput] = useState('');
   const [waModal, setWaModal] = useState(null);
   const [adaptTab, setAdaptTab] = useState('FACEBOOK');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { data: post_, isLoading } = useQuery({
     queryKey: ['post', id],
@@ -63,6 +75,8 @@ export default function PostEditorPage() {
       });
     }
   }, [post_]);
+
+  useDocumentTitle(isNew ? 'New post' : post_?.title || 'Post');
 
   const status = post_?.status || 'DRAFT';
   const isOwner = user?.role === 'OWNER';
@@ -99,8 +113,9 @@ export default function PostEditorPage() {
     onSuccess: (_, { verb }) => {
       qc.invalidateQueries({ queryKey: ['post', id] });
       qc.invalidateQueries({ queryKey: ['calendar'] });
-      qc.invalidateQueries({ queryKey: ['pending-approvals'] });
-      toast.success(`Post ${verb}${verb.endsWith('e') ? 'd' : 'ed'}`);
+      qc.invalidateQueries({ queryKey: ['post-stats'] });
+      qc.invalidateQueries({ queryKey: ['approvals'] });
+      toast.success(`Post ${ACTION_DONE[verb] || verb}`);
     },
     onError: (e) => toast.error(e.message),
   });
@@ -125,7 +140,13 @@ export default function PostEditorPage() {
 
   const removeMut = useMutation({
     mutationFn: () => del(`/posts/${id}`),
-    onSuccess: () => { toast.success('Post deleted'); navigate('/calendar'); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['calendar'] });
+      qc.invalidateQueries({ queryKey: ['post-stats'] });
+      toast.success('Post deleted');
+      navigate('/calendar');
+    },
+    onError: (e) => toast.error(e.message),
   });
 
   const openWhatsApp = async () => {
@@ -264,7 +285,11 @@ export default function PostEditorPage() {
                   </div>
                 )}
                 <LifecycleActions status={status} isOwner={isOwner} form={form} action={action} retry={retry} openWhatsApp={openWhatsApp} />
-                <button onClick={() => removeMut.mutate()} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-sm text-red-500 hover:bg-red-500/10">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-sm text-red-500 transition hover:bg-red-500/10"
+                >
                   <Trash2 className="h-4 w-4" /> Delete post
                 </button>
               </CardBody>
@@ -300,7 +325,7 @@ export default function PostEditorPage() {
                   <div key={a.id} className="flex gap-2.5 text-sm">
                     <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-elevated"><History className="h-3.5 w-3.5 text-muted" /></div>
                     <div>
-                      <p className="text-fg"><span className="font-medium">{a.actor?.name}</span> · {a.action?.toLowerCase().replace('_', ' ')}</p>
+                      <p className="text-fg"><span className="font-medium">{a.actor?.name}</span> · {activityVerb(a.action)}</p>
                       <p className="text-xs text-muted">{timeAgo(a.createdAt)}</p>
                     </div>
                   </div>
@@ -322,6 +347,17 @@ export default function PostEditorPage() {
         <p className="mb-2 text-sm text-muted">Formatted for WhatsApp — copy it or open WhatsApp with the message ready.</p>
         <pre className="whitespace-pre-wrap rounded-xl bg-elevated p-4 text-sm text-fg font-sans">{waModal?.text}</pre>
       </Modal>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={() => removeMut.mutate()}
+        title="Delete this post?"
+        message="The post, its activity history and any queued publish job are removed. This cannot be undone."
+        confirmLabel="Delete post"
+        danger
+        loading={removeMut.isPending}
+      />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { Children, cloneElement, isValidElement, useId } from 'react';
 import { cn } from '../../lib/utils';
 
 export function Label({ className, children, hint, ...props }) {
@@ -9,12 +10,45 @@ export function Label({ className, children, hint, ...props }) {
   );
 }
 
-export function Field({ label, hint, error, children, className }) {
+/**
+ * Label + control + error message.
+ *
+ * The label is wired to its control with `htmlFor`/`id` rather than just
+ * rendered above it, so clicking the label focuses the field and screen readers
+ * announce the two together. The id is generated here and pushed onto the child
+ * unless the caller already set one.
+ */
+export function Field({ label, hint, error, children, className, htmlFor }) {
+  const generatedId = useId();
+  // A Field may hold a control plus extra hints or chips; only the first
+  // element is the control, and only it gets the id the label points at.
+  const items = Children.toArray(children);
+  const control = items.find(isValidElement);
+  const controlId = htmlFor || control?.props?.id || generatedId;
+  const errorId = `${controlId}-error`;
+
+  const wired = items.map((item) =>
+    item === control
+      ? cloneElement(item, {
+          id: controlId,
+          ...(error ? { 'aria-invalid': true, 'aria-describedby': errorId } : {}),
+        })
+      : item
+  );
+
   return (
     <div className={className}>
-      {label && <Label hint={hint}>{label}</Label>}
-      {children}
-      {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
+      {label && (
+        <Label hint={hint} htmlFor={controlId}>
+          {label}
+        </Label>
+      )}
+      {wired}
+      {error && (
+        <p id={errorId} className="text-xs text-red-500 mt-1.5">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

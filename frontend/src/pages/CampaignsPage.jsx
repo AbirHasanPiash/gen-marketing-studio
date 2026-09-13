@@ -1,20 +1,21 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Lightbulb, Sparkles, Plus, CalendarRange, Trash2, Wand2, ArrowRight, Loader2,
+  Lightbulb, Sparkles, Plus, CalendarRange, Trash2, Wand2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
-import { Card, CardHeader, CardBody, Button, Input, Textarea, Field, Modal, Badge, EmptyState, Skeleton } from '../components/ui';
+import { Card, CardBody, Button, Input, Textarea, Field, Modal, ConfirmDialog, Badge, EmptyState, Skeleton } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { get, post, del } from '../lib/api';
-import { fmtDate, cn } from '../lib/utils';
 
 export default function CampaignsPage() {
   const qc = useQueryClient();
   const { activeBrandId } = useActiveBrand();
   const [creating, setCreating] = useState(false);
+  const [toDelete, setToDelete] = useState(null);
+  useDocumentTitle('Campaign Ideas');
 
   const { data: suggestions, isLoading: loadingSug } = useQuery({
     queryKey: ['suggestions', activeBrandId],
@@ -46,7 +47,12 @@ export default function CampaignsPage() {
 
   const remove = useMutation({
     mutationFn: (id) => del(`/campaigns/${id}`),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['campaigns'] }); toast.success('Deleted'); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['campaigns'] });
+      setToDelete(null);
+      toast.success('Campaign deleted');
+    },
+    onError: (e) => toast.error(e.message),
   });
 
   return (
@@ -102,7 +108,14 @@ export default function CampaignsPage() {
                 <CardBody>
                   <div className="flex items-start justify-between">
                     <span className="h-3 w-3 rounded-full" style={{ background: c.color || '#7c3aed' }} />
-                    <button onClick={() => remove.mutate(c.id)} className="text-muted hover:text-red-500"><Trash2 className="h-4 w-4" /></button>
+                    <button
+                      type="button"
+                      aria-label={`Delete ${c.name}`}
+                      onClick={() => setToDelete(c)}
+                      className="rounded-md p-1 text-muted transition hover:bg-elevated hover:text-red-500"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                   <h3 className="mt-2 font-display font-semibold text-fg">{c.name}</h3>
                   {c.theme && <Badge className="mt-1">{c.theme}</Badge>}
@@ -121,6 +134,17 @@ export default function CampaignsPage() {
       </section>
 
       {creating && <CampaignModal onClose={() => setCreating(false)} onSave={(c) => create.mutate(c)} saving={create.isPending} />}
+
+      <ConfirmDialog
+        open={Boolean(toDelete)}
+        onClose={() => setToDelete(null)}
+        onConfirm={() => remove.mutate(toDelete.id)}
+        title={`Delete “${toDelete?.name}”?`}
+        message="Posts in this campaign are kept — they just stop being grouped under it."
+        confirmLabel="Delete campaign"
+        danger
+        loading={remove.isPending}
+      />
     </div>
   );
 }

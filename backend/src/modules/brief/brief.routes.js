@@ -6,7 +6,8 @@ import { authenticate } from '../../middleware/auth.js';
 import { asyncHandler, ok, created } from '../../utils/http.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { ensureBrand, ensureOwned } from '../../utils/scope.js';
-import { objectId, optionalObjectId } from '../../utils/validators.js';
+import { objectId, optionalObjectId, queryObjectId, searchQuery } from '../../utils/validators.js';
+import { generationLimiter } from '../../middleware/rateLimit.js';
 import { generateFromPrompt, buildPromptFromBrief } from '../asset/asset.service.js';
 
 
@@ -44,8 +45,18 @@ const briefBody = z.object({
   notes: z.string().max(2000).optional().nullable(),
 });
 
+const idParam = { params: z.object({ id: objectId('brief id') }) };
+
 router.get(
   '/',
+  validate({
+    query: z.object({
+      brandId: queryObjectId('brandId'),
+      status: z.enum(['DRAFT', 'GENERATING', 'COMPLETED', 'ARCHIVED']).optional(),
+      search: searchQuery(),
+      tag: searchQuery(40),
+    }),
+  }),
   asyncHandler(async (req, res) => {
     const { brandId, status, search, tag } = req.query;
     const where = {
@@ -56,7 +67,7 @@ router.get(
       ...(search
         ? {
             OR: [
-              { title: { contains: String(search), mode: 'insensitive' } },
+              { title: { contains: search, mode: 'insensitive' } },
               { tags: { has: normalizeTag(search) } },
             ],
           }
@@ -78,6 +89,7 @@ router.get(
 /** Distinct tags in this workspace with usage counts — powers the filter chips. */
 router.get(
   '/tags',
+  validate({ query: z.object({ brandId: queryObjectId('brandId') }) }),
   asyncHandler(async (req, res) => {
     const briefs = await prisma.creativeBrief.findMany({
       where: { tenantId: req.tenantId, ...(req.query.brandId ? { brandId: req.query.brandId } : {}) },
@@ -140,6 +152,7 @@ router.post(
 
 router.get(
   '/:id',
+  validate(idParam),
   asyncHandler(async (req, res) => {
     const brief = await prisma.creativeBrief.findFirst({
       where: { id: req.params.id, tenantId: req.tenantId },
@@ -171,7 +184,7 @@ router.post(
  */
 router.post(
   '/:id/duplicate',
-  validate({ body: z.object({ title: z.string().min(2).max(160).optional() }).default({}) }),
+  validate({ ...idParam, body: z.object({ title: z.string().min(2).max(160).optional() }).default({}) }),
   asyncHandler(async (req, res) => {
     const source = await prisma.creativeBrief.findFirst({
       where: { id: req.params.id, tenantId: req.tenantId },
@@ -208,7 +221,7 @@ router.post(
  */
 router.patch(
   '/:id',
-  validate({ body: briefBody.partial().omit({ brandId: true }) }),
+  validate({ ...idParam, body: briefBody.partial().omit({ brandId: true }) }),
   asyncHandler(async (req, res) => {
     await ensureOwned('creativeBrief', req.tenantId, req.params.id);
     const data = { ...req.body };
@@ -223,7 +236,9 @@ router.patch(
 /** Resolve the brief + brand kit into a prompt and run cached text-to-image. */
 router.post(
   '/:id/generate',
+  generationLimiter,
   validate({
+    ...idParam,
     body: z.object({
       size: z.enum(['square', 'portrait', 'story', 'landscape']).default('square'),
       count: z.coerce.number().int().min(1).max(4).default(2),
@@ -266,6 +281,7 @@ router.post(
 
 router.delete(
   '/:id',
+  validate(idParam),
   asyncHandler(async (req, res) => {
     await ensureOwned('creativeBrief', req.tenantId, req.params.id);
     await prisma.creativeBrief.delete({ where: { id: req.params.id } });

@@ -40,8 +40,8 @@ export default function RegisterPage() {
         <Field label="Email">
           <Input icon={Mail} type="email" required placeholder="you@company.com" value={form.email} onChange={set('email')} />
         </Field>
-        <Field label="Password" hint="min 6 characters">
-          <Input icon={Lock} type="password" required minLength={6} placeholder="••••••••" value={form.password} onChange={set('password')} />
+        <Field label="Password" hint="min 8 characters">
+          <Input icon={Lock} type="password" required minLength={8} placeholder="••••••••" value={form.password} onChange={set('password')} />
         </Field>
         <Button type="submit" loading={loading} className="w-full">
           Create account <ArrowRight className="h-4 w-4" />

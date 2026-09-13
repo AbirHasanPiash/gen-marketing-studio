@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { X } from 'lucide-react';
@@ -27,19 +28,22 @@ function SidebarContent({ onNavigate }) {
   const { user } = useAuth();
   const { activeBrandId } = useActiveBrand();
 
-  const { data: pending } = useQuery({
-    queryKey: ['pending-approvals', activeBrandId],
-    queryFn: () => get(`/posts?status=PENDING_REVIEW${activeBrandId ? `&brandId=${activeBrandId}` : ''}`),
+  // Counts only — the badge used to pull every pending post with its author,
+  // brand and campaign joined, on every page of the app, to call `.length`.
+  const { data: stats } = useQuery({
+    queryKey: ['post-stats', activeBrandId],
+    queryFn: () => get(`/posts/stats${activeBrandId ? `?brandId=${activeBrandId}` : ''}`),
     enabled: Boolean(activeBrandId),
+    staleTime: 60_000,
   });
-  const badges = { pending: pending?.length || 0 };
+  const badges = { pending: stats?.byStatus?.PENDING_REVIEW || 0 };
 
   return (
     <div className="flex h-full flex-col">
       <div className="h-16 flex items-center shrink-0">
         <Brandmark />
       </div>
-      <nav className="flex-1 overflow-y-auto no-scrollbar px-2 pb-6 space-y-6">
+      <nav aria-label="Main" className="flex-1 overflow-y-auto no-scrollbar px-2 pb-6 space-y-6">
         {NAV_GROUPS.map((group) => {
           const items = group.items.filter((i) => !i.ownerOnly || user?.role === 'OWNER');
           if (!items.length) return null;
@@ -76,6 +80,7 @@ function SidebarContent({ onNavigate }) {
                                 'rounded-full px-1.5 py-0.5 text-[10px] font-bold',
                                 isActive ? 'bg-white/25 text-white' : 'bg-amber-500 text-white'
                               )}
+                              aria-label={`${badge} awaiting review`}
                             >
                               {badge}
                             </span>
@@ -96,6 +101,17 @@ function SidebarContent({ onNavigate }) {
 
 export function Sidebar() {
   const { sidebarOpen, setSidebar } = useUI();
+  const closeRef = useRef(null);
+
+  // The drawer covers the page; Escape has to get out of it.
+  useEffect(() => {
+    if (!sidebarOpen) return undefined;
+    const onKey = (e) => e.key === 'Escape' && setSidebar(false);
+    document.addEventListener('keydown', onKey);
+    closeRef.current?.focus();
+    return () => document.removeEventListener('keydown', onKey);
+  }, [sidebarOpen, setSidebar]);
+
   return (
     <>
       {/* Desktop */}
@@ -106,10 +122,20 @@ export function Sidebar() {
       {/* Mobile drawer */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm animate-fade-in" onClick={() => setSidebar(false)} />
-          <aside className="absolute left-0 top-0 h-full w-72 bg-card border-r border-border animate-fade-in">
+          <div
+            className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm animate-fade-in"
+            onClick={() => setSidebar(false)}
+            aria-hidden="true"
+          />
+          <aside
+            className="absolute left-0 top-0 h-full w-72 bg-card border-r border-border animate-slide-in-left"
+            aria-label="Navigation"
+          >
             <button
+              ref={closeRef}
+              type="button"
               onClick={() => setSidebar(false)}
+              aria-label="Close navigation"
               className="absolute top-4 right-3 rounded-lg p-1.5 text-muted hover:bg-elevated"
             >
               <X className="h-5 w-5" />

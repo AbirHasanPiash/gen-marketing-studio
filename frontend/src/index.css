@@ -6,7 +6,7 @@
   :root {
     --bg: 248 250 252; /* slate-50 */
     --card: 255 255 255;
-    --elevated: 255 255 255;
+    --elevated: 241 245 249; /* slate-100 — sits above the card, not level with it */
     --border: 226 232 240; /* slate-200 */
     --fg: 15 23 42; /* slate-900 */
     --muted: 100 116 139; /* slate-500 */
@@ -16,7 +16,7 @@
     --bg: 3 7 18; /* near-black */
     --card: 15 23 42; /* slate-900 */
     --elevated: 30 41 59; /* slate-800 */
-    --border: 30 41 59; /* slate-800 */
+    --border: 39 51 71; /* a step lighter than `elevated`, so edges stay visible */
     --fg: 241 245 249; /* slate-100 */
     --muted: 148 163 184; /* slate-400 */
   }
@@ -27,6 +27,21 @@
 
   html {
     -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
+  }
+
+  /* Respect the OS "reduce motion" setting rather than animating regardless. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 
   body {
@@ -36,6 +51,12 @@
 
   ::selection {
     @apply bg-brand-500/30;
+  }
+
+  /* One visible focus ring for everything reachable by keyboard. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand-500 ring-offset-2;
+    --tw-ring-offset-color: rgb(var(--bg));
   }
 
   /* Custom scrollbar */
@@ -67,6 +88,12 @@
     @apply block text-sm font-medium text-fg mb-1.5;
   }
 
+  /*
+   * Loading placeholder. The sweep is declared here rather than in the Tailwind
+   * theme: Tailwind only emits a `@keyframes` block for a keyframe an
+   * `animate-*` utility actually references, so a theme keyframe used only from
+   * hand-written CSS is silently dropped and the skeleton never animates.
+   */
   .skeleton {
     @apply relative overflow-hidden rounded-lg bg-border/60;
   }
@@ -75,7 +102,21 @@
     content: '';
     background: linear-gradient(90deg, transparent, rgb(var(--fg) / 0.06), transparent);
     transform: translateX(-100%);
-    animation: shimmer 1.5s infinite;
+    animation: skeleton-sweep 1.5s infinite;
+  }
+
+  @keyframes skeleton-sweep {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  /* Keyboard-only shortcut past the sidebar, straight to the page content. */
+  .skip-link {
+    @apply sr-only;
+  }
+  .skip-link:focus {
+    @apply not-sr-only fixed left-4 top-4 z-[60] rounded-xl bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-card;
   }
 
   /* Thin gradient scrollbar hidden helper */

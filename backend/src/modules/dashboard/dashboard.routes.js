@@ -1,13 +1,17 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { prisma } from '../../lib/prisma.js';
 import { authenticate } from '../../middleware/auth.js';
+import { validate } from '../../middleware/validate.js';
 import { asyncHandler, ok } from '../../utils/http.js';
+import { queryObjectId } from '../../utils/validators.js';
 
 const router = Router();
 router.use(authenticate);
 
 router.get(
   '/',
+  validate({ query: z.object({ brandId: queryObjectId('brandId') }) }),
   asyncHandler(async (req, res) => {
     const t = req.tenantId;
     const brandFilter = req.query.brandId ? { brandId: req.query.brandId } : {};

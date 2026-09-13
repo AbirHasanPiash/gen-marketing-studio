@@ -1,7 +1,16 @@
 import { env } from '../config/env.js';
 import { logger } from './logger.js';
 
-export const groqEnabled = () => env.openRouter.enabled;
+/**
+ * Text generation through OpenRouter's OpenAI-compatible chat API, with a
+ * deterministic offline copywriter behind it. Every entry point falls back to
+ * the mock when no key is configured, so the Copy Studio is fully demoable.
+ */
+
+/** How long to wait on the model before giving up and using the fallback. */
+const REQUEST_TIMEOUT_MS = 45_000;
+
+export const llmEnabled = () => env.openRouter.enabled;
 
 /* ---------------------------------------------------------------------------
  * Mock generator — produces believable marketing copy with no API key so the
@@ -68,7 +77,7 @@ function mockHashtags(input, i = 0) {
 async function mockStream(text, onToken, delay = 12) {
   const tokens = text.match(/\S+\s*/g) || [text];
   for (const t of tokens) {
-    // eslint-disable-next-line no-await-in-loop
+     
     await new Promise((r) => setTimeout(r, delay));
     onToken?.(t);
   }
@@ -78,9 +87,12 @@ async function mockStream(text, onToken, delay = 12) {
 /* ---------------------------------------------------------------------------
  * Real OpenRouter calls (OpenAI-compatible endpoint).
  * ------------------------------------------------------------------------- */
-async function groqRequest(messages, { temperature = 0.9, stream = false, json = false } = {}) {
+async function chatRequest(messages, { temperature = 0.9, stream = false, json = false } = {}) {
+  // Without a deadline a hung upstream holds the SSE response — and the
+  // browser's spinner — open indefinitely.
   const res = await fetch(env.openRouter.apiUrl, {
     method: 'POST',
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${env.openRouter.apiKey}`,
@@ -109,10 +121,8 @@ export async function complete({ system, prompt, temperature, json } = {}) {
     { role: 'user', content: prompt },
   ].filter(Boolean);
 
-  if (!groqEnabled()) {
-    return mockCaption({ product: prompt.slice(0, 40) });
-  }
-  const res = await groqRequest(messages, { temperature, json });
+  if (!llmEnabled()) return mockCaption({ product: String(prompt || '').slice(0, 40) });
+  const res = await chatRequest(messages, { temperature, json });
   const data = await res.json();
   return data.choices?.[0]?.message?.content ?? '';
 }
@@ -127,11 +137,11 @@ export async function stream({ system, prompt, temperature, onToken, mockText } 
     { role: 'user', content: prompt },
   ].filter(Boolean);
 
-  if (!groqEnabled()) {
+  if (!llmEnabled()) {
     return mockStream(mockText || mockCaption({ product: (prompt || '').slice(0, 40) }), onToken);
   }
 
-  const res = await groqRequest(messages, { temperature, stream: true });
+  const res = await chatRequest(messages, { temperature, stream: true });
   const decoder = new TextDecoder();
   let buffer = '';
   let full = '';
@@ -160,13 +170,14 @@ export async function stream({ system, prompt, temperature, onToken, mockText } 
   return full;
 }
 
+const mockVariations = (kind, input, count) =>
+  Array.from({ length: count }, (_, i) =>
+    kind === 'hashtags' ? mockHashtags(input, i) : kind === 'ad_copy' ? mockAdCopy(input, i) : mockCaption(input, i)
+  );
+
 /** Generate N distinct variations of a piece of copy. */
 export async function variations({ kind, input, count = 5 } = {}) {
-  if (!groqEnabled()) {
-    return Array.from({ length: count }, (_, i) =>
-      kind === 'hashtags' ? mockHashtags(input, i) : kind === 'ad_copy' ? mockAdCopy(input, i) : mockCaption(input, i)
-    );
-  }
+  if (!llmEnabled()) return mockVariations(kind, input, count);
 
   const system =
     'You are a senior social-media copywriter for small Bangladeshi retail brands. ' +
@@ -174,7 +185,7 @@ export async function variations({ kind, input, count = 5 } = {}) {
   const user = `Produce ${count} distinct ${kind} variations.\nContext: ${JSON.stringify(input)}`;
 
   try {
-    const res = await groqRequest(
+    const res = await chatRequest(
       [
         { role: 'system', content: system },
         { role: 'user', content: user },
@@ -183,15 +194,13 @@ export async function variations({ kind, input, count = 5 } = {}) {
     );
     const data = await res.json();
     const parsed = JSON.parse(data.choices?.[0]?.message?.content || '{}');
-    const list = Array.isArray(parsed.variations) ? parsed.variations : [];
-    return list.length ? list.slice(0, count) : Array.from({ length: count }, (_, i) =>
-      kind === 'hashtags' ? mockHashtags(input, i) : kind === 'ad_copy' ? mockAdCopy(input, i) : mockCaption(input, i)
+    const list = (Array.isArray(parsed.variations) ? parsed.variations : []).filter(
+      (v) => typeof v === 'string' && v.trim()
     );
+    return list.length ? list.slice(0, count) : mockVariations(kind, input, count);
   } catch (err) {
     logger.warn('OpenRouter variations failed, using mock:', err.message);
-    return Array.from({ length: count }, (_, i) =>
-      kind === 'hashtags' ? mockHashtags(input, i) : kind === 'ad_copy' ? mockAdCopy(input, i) : mockCaption(input, i)
-    );
+    return mockVariations(kind, input, count);
   }
 }
 

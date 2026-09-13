@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  Store, Plus, Pencil, Trash2, Palette, Package, FileText, Images, Check, Sparkles, Lock,
+  Store, Plus, Pencil, Trash2, Palette, Package, FileText, Images, Check, Sparkles, Lock, MoreHorizontal,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { ImageUploader } from '../components/shared/ImageUploader';
 import {
-  Card, CardBody, Button, Input, Textarea, Field, Modal, ConfirmDialog, Avatar, Badge, EmptyState, Skeleton, Menu, MenuItem,
+  Card, CardBody, Button, Input, Textarea, Field, Modal, ConfirmDialog, Avatar, EmptyState, Skeleton, Menu, MenuItem,
 } from '../components/ui';
 import { useBrands } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useAuth } from '../store/auth';
-import { get, post, patch, put, del } from '../lib/api';
+import { post, patch, put, del } from '../lib/api';
 
 const empty = { name: '', tagline: '', description: '', industry: '', website: '', logoUrl: '', email: '', phone: '', address: '' };
 
@@ -22,6 +23,7 @@ export default function BrandsPage() {
   const [editing, setEditing] = useState(null); // brand or {} for new
   const [kitBrand, setKitBrand] = useState(null);
   const [toDelete, setToDelete] = useState(null);
+  useDocumentTitle('Brands');
 
   const save = useMutation({
     mutationFn: (b) => (b.id ? patch(`/brands/${b.id}`, b) : post('/brands', b)),
@@ -66,9 +68,9 @@ export default function BrandsPage() {
                   <Avatar name={b.name} src={b.logoUrl} size="lg" className="ring-4 ring-card" />
                   {isOwner && (
                     <Menu
-                      trigger={() => (
-                        <button className="mt-12 rounded-lg p-1.5 text-muted hover:bg-elevated hover:text-fg">⋯</button>
-                      )}
+                      label={`Actions for ${b.name}`}
+                      triggerClassName="mt-12 rounded-lg p-1.5 text-muted transition hover:bg-elevated hover:text-fg"
+                      trigger={() => <MoreHorizontal className="h-4 w-4" />}
                     >
                       <MenuItem icon={Pencil} onClick={() => setEditing(b)}>Edit</MenuItem>
                       <MenuItem icon={Palette} onClick={() => setKitBrand(b)}>Brand kit</MenuItem>

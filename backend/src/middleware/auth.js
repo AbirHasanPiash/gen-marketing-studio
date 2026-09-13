@@ -21,6 +21,10 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
   } catch {
     throw ApiError.unauthorized('Invalid or expired token');
   }
+  // Single-purpose tokens (the Meta OAuth `state`, for one) are signed with the
+  // same secret but travel through URLs and third-party servers. They are not
+  // credentials — refuse them here rather than trusting `sub` alone.
+  if (payload.purpose) throw ApiError.unauthorized('This token cannot be used to sign in');
 
   const user = await prisma.user.findUnique({
     where: { id: payload.sub },
@@ -59,6 +63,7 @@ export const optionalAuth = asyncHandler(async (req, _res, next) => {
   if (!token) return next();
   try {
     const payload = verifyToken(token);
+    if (payload.purpose) return next();
     const user = await prisma.user.findUnique({
       where: { id: payload.sub },
       // isActive has to be selected or the check below is always true and a

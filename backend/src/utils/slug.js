@@ -12,7 +12,7 @@ export async function uniqueSlug(base, exists) {
   let candidate = root;
   // Try the clean slug first, then append short random suffixes.
   for (let i = 0; i < 5; i += 1) {
-    // eslint-disable-next-line no-await-in-loop
+     
     if (!(await exists(candidate))) return candidate;
     candidate = `${root}-${short()}`;
   }

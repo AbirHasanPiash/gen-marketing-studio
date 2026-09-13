@@ -1,7 +1,8 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Sparkles, Loader2, ArrowUpRight } from 'lucide-react';
-import { get, post } from '../../lib/api';
+import { API_ORIGIN, get } from '../../lib/api';
+import { useDocumentTitle } from '../../hooks/useDocumentTitle';
 
 export default function PublicLinkBioPage() {
   const { slug } = useParams();
@@ -11,13 +12,20 @@ export default function PublicLinkBioPage() {
     retry: false,
   });
 
-  const onClick = async (link) => {
-    try {
-      const res = await post(`/public/links/${link.id}/click`);
-      window.open(res.url || link.url, '_blank', 'noopener');
-    } catch {
-      window.open(link.url, '_blank', 'noopener');
-    }
+  useDocumentTitle(data?.title || (isError ? 'Page not found' : 'Loading…'));
+
+  /**
+   * Count the click without getting in the way of it.
+   *
+   * These are real anchors, so the browser navigates on its own — the previous
+   * version awaited the tracking request and then called `window.open`, which
+   * pop-up blockers reject because it no longer counts as a user gesture.
+   * `sendBeacon` fires the count in the background and never delays the jump.
+   */
+  const trackClick = (link) => {
+    const url = `${API_ORIGIN}/api/public/links/${link.id}/click`;
+    if (navigator.sendBeacon) navigator.sendBeacon(url);
+    else fetch(url, { method: 'POST', keepalive: true }).catch(() => {});
   };
 
   if (isLoading) {
@@ -53,15 +61,18 @@ export default function PublicLinkBioPage() {
         <div className="mt-8 w-full space-y-3.5">
           {data.links?.length ? (
             data.links.map((l) => (
-              <button
+              <a
                 key={l.id}
-                onClick={() => onClick(l)}
+                href={l.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => trackClick(l)}
                 className="group flex w-full items-center justify-between rounded-2xl px-5 py-4 font-semibold shadow-lg transition hover:scale-[1.02] active:scale-[0.99]"
                 style={{ background: accent, color: '#111' }}
               >
                 <span>{l.label}</span>
                 <ArrowUpRight className="h-5 w-5 opacity-60 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-              </button>
+              </a>
             ))
           ) : (
             <p className="text-white/50">No links yet.</p>

@@ -12,6 +12,7 @@ import {
   Card, CardBody, Button, Input, Textarea, Field, Select, Modal, ConfirmDialog, EmptyState, Skeleton,
 } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { get, post, patch, del } from '../lib/api';
 import { cn } from '../lib/utils';
 
@@ -201,6 +202,7 @@ export default function VideoPage() {
   const [editing, setEditing] = useState(null);
   const [preview, setPreview] = useState(null);
   const [toDelete, setToDelete] = useState(null);
+  useDocumentTitle('Video Studio');
 
   // Surface the server's FFmpeg capabilities up front — otherwise the only way
   // to discover a missing binary or a drawtext-less build is a failed render.
@@ -348,7 +350,6 @@ export default function VideoPage() {
       >
         {preview?.outputUrl && (
           <div className="grid place-items-center rounded-xl bg-slate-950 p-2">
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
             <video
               key={preview.outputUrl}
               src={preview.outputUrl}

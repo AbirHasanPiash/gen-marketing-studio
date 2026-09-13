@@ -35,5 +35,6 @@ backend/uploads/
 !.vscode/extensions.json
 *.swp
 
-# Coverage
+# Coverage & test output
 coverage/
+.vitest/

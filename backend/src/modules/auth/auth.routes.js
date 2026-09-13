@@ -8,6 +8,7 @@ import { authenticate, requireRole } from '../../middleware/auth.js';
 import { asyncHandler, ok, created } from '../../utils/http.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { uniqueSlug } from '../../utils/slug.js';
+import { objectId } from '../../utils/validators.js';
 
 const router = Router();
 
@@ -21,12 +22,16 @@ const publicUser = (u) => ({
   tenant: u.tenant,
 });
 
+/** One place to state the password rule, so sign-up and reset can't drift. */
+const password = z.string().min(8, 'Use at least 8 characters').max(128);
+const email = z.string().trim().toLowerCase().email();
+
 const registerSchema = {
   body: z.object({
-    name: z.string().min(2).max(80),
-    email: z.string().email(),
-    password: z.string().min(6).max(128),
-    tenantName: z.string().min(2).max(80).optional(),
+    name: z.string().trim().min(2).max(80),
+    email,
+    password,
+    tenantName: z.string().trim().min(2).max(80).optional(),
   }),
 };
 
@@ -63,7 +68,7 @@ router.post(
 
 router.post(
   '/login',
-  validate({ body: z.object({ email: z.string().email(), password: z.string().min(1) }) }),
+  validate({ body: z.object({ email, password: z.string().min(1).max(128) }) }),
   asyncHandler(async (req, res) => {
     const { email, password } = req.body;
     const user = await prisma.user.findUnique({
@@ -83,6 +88,57 @@ router.get(
   '/me',
   authenticate,
   asyncHandler(async (req, res) => ok(res, { user: publicUser(req.user) }))
+);
+
+/** Edit your own profile. Role and tenant are deliberately not editable here. */
+router.patch(
+  '/me',
+  authenticate,
+  validate({
+    body: z.object({
+      name: z.string().trim().min(2).max(80).optional(),
+      avatarUrl: z.string().max(2048).nullish(),
+    }),
+  }),
+  asyncHandler(async (req, res) => {
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: req.body,
+      include: { tenant: { select: { id: true, name: true, slug: true, plan: true } } },
+    });
+    return ok(res, { user: publicUser(user) });
+  })
+);
+
+/**
+ * Change your own password. Owners hand new members a temporary one, so without
+ * this there is no way for a creator to ever stop using a password their whole
+ * team knows.
+ */
+router.post(
+  '/me/password',
+  authenticate,
+  validate({
+    body: z.object({
+      currentPassword: z.string().min(1).max(128),
+      newPassword: password,
+    }),
+  }),
+  asyncHandler(async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user || !(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      throw ApiError.unauthorized('That current password is not right');
+    }
+    if (currentPassword === newPassword) {
+      throw ApiError.badRequest('Pick a password you have not used here before');
+    }
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: await bcrypt.hash(newPassword, 10) },
+    });
+    return ok(res, { updated: true });
+  })
 );
 
 // --- Team management (Owner invites Content Creators) ----------------------
@@ -106,9 +162,9 @@ router.post(
   requireRole('OWNER'),
   validate({
     body: z.object({
-      name: z.string().min(2).max(80),
-      email: z.string().email(),
-      password: z.string().min(6).max(128),
+      name: z.string().trim().min(2).max(80),
+      email,
+      password,
       role: z.enum(['OWNER', 'CREATOR']).default('CREATOR'),
     }),
   }),
@@ -130,17 +186,30 @@ router.patch(
   authenticate,
   requireRole('OWNER'),
   validate({
+    params: z.object({ id: objectId('user id') }),
     body: z.object({
       role: z.enum(['OWNER', 'CREATOR']).optional(),
       isActive: z.boolean().optional(),
-      name: z.string().min(2).max(80).optional(),
+      name: z.string().trim().min(2).max(80).optional(),
     }),
   }),
   asyncHandler(async (req, res) => {
     const target = await prisma.user.findFirst({ where: { id: req.params.id, tenantId: req.tenantId } });
     if (!target) throw ApiError.notFound('User not found');
-    if (target.id === req.user.id && req.body.isActive === false)
-      throw ApiError.badRequest('You cannot deactivate yourself');
+    if (target.id === req.user.id) {
+      // Demoting or disabling yourself is the classic way to lock a workspace
+      // with a single owner out of its own settings.
+      if (req.body.isActive === false) throw ApiError.badRequest('You cannot deactivate yourself');
+      if (req.body.role && req.body.role !== target.role) {
+        throw ApiError.badRequest('You cannot change your own role');
+      }
+    }
+    if (target.role === 'OWNER' && (req.body.role === 'CREATOR' || req.body.isActive === false)) {
+      const owners = await prisma.user.count({
+        where: { tenantId: req.tenantId, role: 'OWNER', isActive: true },
+      });
+      if (owners <= 1) throw ApiError.badRequest('A workspace needs at least one active owner');
+    }
     const user = await prisma.user.update({
       where: { id: target.id },
       data: req.body,

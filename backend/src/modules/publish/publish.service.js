@@ -44,7 +44,7 @@ export async function runPublishJob(postId) {
     if (!account) {
       lastError = permanent(`No connected ${platform} account for this brand`);
       results.push(
-        // eslint-disable-next-line no-await-in-loop
+         
         await prisma.publication.create({
           data: { tenantId: post.tenantId, postId, platform, status: 'FAILED', error: lastError.message },
         })
@@ -59,14 +59,14 @@ export async function runPublishJob(postId) {
     try {
       const r =
         platform === 'FACEBOOK'
-          ? // eslint-disable-next-line no-await-in-loop
+          ?  
             await meta.publishToFacebook({
               pageId: account.pageId || account.externalId,
               accessToken: token,
               message: caption,
               imageUrl,
             })
-          : // eslint-disable-next-line no-await-in-loop
+          :  
             await meta.publishToInstagram({
               igBusinessId: account.igBusinessId || account.externalId,
               accessToken: token,
@@ -75,7 +75,7 @@ export async function runPublishJob(postId) {
             });
 
       results.push(
-        // eslint-disable-next-line no-await-in-loop
+         
         await prisma.publication.create({
           data: {
             tenantId: post.tenantId,
@@ -93,7 +93,7 @@ export async function runPublishJob(postId) {
     } catch (err) {
       lastError = err;
       results.push(
-        // eslint-disable-next-line no-await-in-loop
+         
         await prisma.publication.create({
           data: {
             tenantId: post.tenantId,

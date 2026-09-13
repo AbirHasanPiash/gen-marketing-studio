@@ -7,8 +7,9 @@ import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { Card, CardHeader, CardBody, Button, Textarea, Field, Select, Badge, EmptyState } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { get, post } from '../lib/api';
-import { timeAgo, truncate, cn } from '../lib/utils';
+import { truncate, cn } from '../lib/utils';
 
 const SIZES = [
   { key: 'square', label: 'Square 1:1' },
@@ -19,11 +20,12 @@ const SIZES = [
 
 export default function ImageStudioPage() {
   const qc = useQueryClient();
-  const { activeBrandId, activeBrand } = useActiveBrand();
+  const { activeBrandId } = useActiveBrand();
   const [prompt, setPrompt] = useState('');
   const [size, setSize] = useState('square');
   const [count, setCount] = useState(2);
   const [result, setResult] = useState(null);
+  useDocumentTitle('Image Studio');
 
   const { data: cache } = useQuery({ queryKey: ['prompt-cache'], queryFn: () => get('/assets/cache') });
 

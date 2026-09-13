@@ -59,6 +59,25 @@ export const STATUS_META = {
   GENERATING: { label: 'Generating', cls: 'bg-brand-500/15 text-brand-400' },
 };
 
+/**
+ * Audit-log verbs as a reader would say them. Deriving these by appending "ed"
+ * produces "submited" and "publishd", and lowercasing the enum leaves
+ * "pending_review" on screen.
+ */
+export const ACTIVITY_VERB = {
+  CREATE: 'created',
+  SUBMIT: 'submitted',
+  APPROVE: 'approved',
+  REJECT: 'requested changes on',
+  SCHEDULE: 'scheduled',
+  UNSCHEDULE: 'unscheduled',
+  PUBLISH: 'published',
+  ARCHIVE: 'archived',
+};
+
+export const activityVerb = (action) =>
+  ACTIVITY_VERB[action] || String(action || '').toLowerCase().replace(/_/g, ' ');
+
 export const PLATFORM_META = {
   FACEBOOK: { label: 'Facebook', color: '#1877F2', short: 'FB' },
   INSTAGRAM: { label: 'Instagram', color: '#E4405F', short: 'IG' },

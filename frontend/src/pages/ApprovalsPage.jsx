@@ -7,6 +7,7 @@ import { PageHeader } from '../components/shared/PageHeader';
 import { RejectDialog } from '../components/shared/RejectDialog';
 import { Card, Button, StatusBadge, PlatformDot, Avatar, EmptyState, Skeleton } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useAuth } from '../store/auth';
 import { get, post } from '../lib/api';
 import { timeAgo, truncate, cn } from '../lib/utils';
@@ -23,6 +24,7 @@ export default function ApprovalsPage() {
   const { activeBrandId } = useActiveBrand();
   const isOwner = useAuth((s) => s.user?.role === 'OWNER');
   const [rejectingId, setRejectingId] = useState(null);
+  useDocumentTitle('Approvals');
 
   const { data: posts, isLoading } = useQuery({
     queryKey: ['approvals', activeBrandId],
@@ -34,7 +36,7 @@ export default function ApprovalsPage() {
     mutationFn: ({ id, verb, payload }) => post(`/posts/${id}/${verb}`, payload || {}),
     onSuccess: (_, { verb }) => {
       qc.invalidateQueries({ queryKey: ['approvals'] });
-      qc.invalidateQueries({ queryKey: ['pending-approvals'] });
+      qc.invalidateQueries({ queryKey: ['post-stats'] });
       toast.success(verb === 'approve' ? 'Approved ✓' : 'Changes requested');
     },
     onError: (e) => toast.error(e.message),

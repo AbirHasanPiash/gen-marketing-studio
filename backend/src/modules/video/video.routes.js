@@ -6,7 +6,9 @@ import { authenticate } from '../../middleware/auth.js';
 import { asyncHandler, ok, created } from '../../utils/http.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { logger } from '../../lib/logger.js';
-import { ensureOwned } from '../../utils/scope.js';
+import { ensureBrand, ensureOwned } from '../../utils/scope.js';
+import { objectId, optionalObjectId, queryObjectId } from '../../utils/validators.js';
+import { generationLimiter } from '../../middleware/rateLimit.js';
 import { generateFromPrompt } from '../asset/asset.service.js';
 import {
   renderVideo,
@@ -27,11 +29,11 @@ const ASPECT_TO_SIZE = { '9:16': 'story', '1:1': 'square', '16:9': 'landscape' }
 
 const videoBody = z.object({
   title: z.string().min(1).max(160),
-  brandId: z.string().optional().nullable(),
-  images: z.array(z.string()).min(1).max(8),
-  captions: z.array(z.string()).default([]),
+  brandId: optionalObjectId('brandId'),
+  images: z.array(z.string().min(1).max(2048)).min(1).max(8),
+  captions: z.array(z.string().max(200)).max(8).default([]),
   durations: z.array(z.coerce.number().min(0.5).max(30)).default([]),
-  audioUrl: z.string().optional().nullable(),
+  audioUrl: z.string().max(2048).optional().nullable(),
   durationS: z.coerce.number().int().min(5).max(30).default(10),
   aspect: z.enum(['9:16', '1:1', '16:9']).default('9:16'),
 });
@@ -44,8 +46,11 @@ router.get(
   })
 );
 
+const idParam = { params: z.object({ id: objectId('video id') }) };
+
 router.get(
   '/',
+  validate({ query: z.object({ brandId: queryObjectId('brandId') }) }),
   asyncHandler(async (req, res) => {
     const where = { tenantId: req.tenantId, ...(req.query.brandId ? { brandId: req.query.brandId } : {}) };
     const videos = await prisma.videoProject.findMany({ where, orderBy: { createdAt: 'desc' } });
@@ -56,6 +61,7 @@ router.get(
 /** The resolved per-scene timeline, and whether it is renderable. */
 router.get(
   '/:id/timeline',
+  validate(idParam),
   asyncHandler(async (req, res) => {
     const project = await ensureOwned('videoProject', req.tenantId, req.params.id);
     const durations = resolveDurations(project);
@@ -72,12 +78,17 @@ router.get(
   })
 );
 
-router.get('/:id', asyncHandler(async (req, res) => ok(res, await ensureOwned('videoProject', req.tenantId, req.params.id))));
+router.get(
+  '/:id',
+  validate(idParam),
+  asyncHandler(async (req, res) => ok(res, await ensureOwned('videoProject', req.tenantId, req.params.id)))
+);
 
 router.post(
   '/',
   validate({ body: videoBody }),
   asyncHandler(async (req, res) => {
+    if (req.body.brandId) await ensureBrand(req.tenantId, req.body.brandId);
     const durations = alignDurations(req.body.durations, req.body.images.length, req.body.durationS);
     const video = await prisma.videoProject.create({
       data: { ...req.body, durations, tenantId: req.tenantId },
@@ -88,7 +99,7 @@ router.post(
 
 router.patch(
   '/:id',
-  validate({ body: videoBody.partial() }),
+  validate({ ...idParam, body: videoBody.partial() }),
   asyncHandler(async (req, res) => {
     const current = await ensureOwned('videoProject', req.tenantId, req.params.id);
     const data = { ...req.body };
@@ -107,6 +118,7 @@ router.patch(
 /** Kick off a background render, returns immediately with RENDERING status. */
 router.post(
   '/:id/render',
+  validate(idParam),
   asyncHandler(async (req, res) => {
     const video = await ensureOwned('videoProject', req.tenantId, req.params.id);
     if (video.status === 'RENDERING' || isRendering(video.id)) {
@@ -143,7 +155,9 @@ router.post(
  */
 router.post(
   '/:id/scenes/:index/regenerate',
+  generationLimiter,
   validate({
+    params: z.object({ id: objectId('video id'), index: z.coerce.number().int().min(0).max(7) }),
     body: z.object({
       image: z.string().min(1).optional(),
       caption: z.string().max(200).optional(),
@@ -158,8 +172,8 @@ router.post(
       throw ApiError.conflict('This reel is already rendering');
     }
 
-    const i = Number.parseInt(req.params.index, 10);
-    if (!Number.isInteger(i) || i < 0 || i >= video.images.length) {
+    const i = req.params.index;
+    if (i >= video.images.length) {
       throw ApiError.badRequest(`Scene ${req.params.index} does not exist on this reel`);
     }
 
@@ -211,6 +225,7 @@ router.post(
 /** Swap back to the render the last success replaced. Calling it twice redoes. */
 router.post(
   '/:id/rollback',
+  validate(idParam),
   asyncHandler(async (req, res) => {
     const video = await ensureOwned('videoProject', req.tenantId, req.params.id);
     if (video.status === 'RENDERING' || isRendering(video.id)) {
@@ -232,6 +247,7 @@ router.post(
 
 router.delete(
   '/:id',
+  validate(idParam),
   asyncHandler(async (req, res) => {
     await ensureOwned('videoProject', req.tenantId, req.params.id);
     await prisma.videoProject.delete({ where: { id: req.params.id } });

@@ -6,6 +6,7 @@ import { PageHeader } from '../components/shared/PageHeader';
 import { ImageUploader } from '../components/shared/ImageUploader';
 import { Card, CardHeader, CardBody, Button, Input, Field, Select } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { post } from '../lib/api';
 
 const loadImage = (url) =>
@@ -54,7 +55,7 @@ export default function CompositePage() {
   const [accent, setAccent] = useState('#7c3aed');
   const [fontSize, setFontSize] = useState(72);
   const [pos, setPos] = useState('bottom');
-  const [tainted, setTainted] = useState(false);
+  useDocumentTitle('Compositing');
 
   const usingCutout = Boolean(cutout) && product === cutout;
   const SIZE = 1080;
@@ -121,13 +122,6 @@ export default function CompositePage() {
         ctx.fillStyle = textColor;
         ctx.textBaseline = 'middle';
         ctx.fillText(text, SIZE / 2, y + 2);
-      }
-      // Detect taint
-      try {
-        canvas.getContext('2d').getImageData(0, 0, 1, 1);
-        setTainted(false);
-      } catch {
-        setTainted(true);
       }
     };
     draw();

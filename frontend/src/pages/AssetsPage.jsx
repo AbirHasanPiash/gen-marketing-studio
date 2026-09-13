@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Images, Search, Heart, Trash2, Download, Copy, Layers, Sparkles, Star, Plus, Crop,
 } from 'lucide-react';
@@ -7,11 +7,15 @@ import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { ImageUploader } from '../components/shared/ImageUploader';
 import {
-  Card, Button, Input, Modal, Badge, EmptyState, Skeleton, Tabs,
+  Card, Button, Input, Modal, ConfirmDialog, Badge, EmptyState, Skeleton, Tabs,
 } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
-import { get, post, patch, del } from '../lib/api';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { get, getPaged, post, patch, del } from '../lib/api';
 import { fmtDate, copyToClipboard, cn } from '../lib/utils';
+
+const PAGE_SIZE = 24;
 
 const SOURCE_TABS = [
   { key: '', label: 'All' },
@@ -27,22 +31,36 @@ export default function AssetsPage() {
   const [source, setSource] = useState('');
   const [favOnly, setFavOnly] = useState(false);
   const [open, setOpen] = useState(null);
+  const debouncedSearch = useDebouncedValue(search, 300);
+  useDocumentTitle('Asset Library');
 
-  const params = new URLSearchParams({ brandId: activeBrandId || '', limit: '48' });
-  if (search) params.set('search', search);
-  if (source) params.set('source', source);
-  if (favOnly) params.set('favorite', 'true');
-
-  const { data, isLoading } = useQuery({
-    queryKey: ['assets', activeBrandId, search, source, favOnly],
-    queryFn: () => get(`/assets?${params.toString()}`),
+  // Paged, not capped. A fixed `limit=48` silently hid everything past the
+  // 48th asset, with nothing in the UI to say more existed.
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+    queryKey: ['assets', activeBrandId, debouncedSearch, source, favOnly],
     enabled: Boolean(activeBrandId),
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({
+        brandId: activeBrandId,
+        limit: String(PAGE_SIZE),
+        page: String(pageParam),
+      });
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      if (source) params.set('source', source);
+      if (favOnly) params.set('favorite', 'true');
+      return getPaged(`/assets?${params}`);
+    },
+    getNextPageParam: (last) => (last.meta && last.meta.page < last.meta.totalPages ? last.meta.page + 1 : undefined),
   });
-  const assets = data?.data || data || [];
+
+  const assets = data?.pages.flatMap((p) => p.items) ?? [];
+  const total = data?.pages[0]?.meta?.total ?? assets.length;
 
   const fav = useMutation({
     mutationFn: ({ id, isFavorite }) => patch(`/assets/${id}`, { isFavorite }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['assets'] }),
+    onError: (e) => toast.error(e.message),
   });
 
   return (
@@ -54,13 +72,26 @@ export default function AssetsPage() {
       />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <Input icon={Search} placeholder="Search by prompt or tag…" value={search} onChange={(e) => setSearch(e.target.value)} className="sm:max-w-xs" />
-        <div className="flex items-center gap-2">
+        <Input
+          icon={Search}
+          type="search"
+          aria-label="Search assets"
+          placeholder="Search by prompt or tag…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="sm:max-w-xs"
+        />
+        <div className="flex flex-wrap items-center gap-2">
           <Tabs tabs={SOURCE_TABS} value={source} onChange={setSource} />
           <Button variant={favOnly ? 'primary' : 'secondary'} size="sm" onClick={() => setFavOnly((v) => !v)}>
             <Heart className={cn('h-4 w-4', favOnly && 'fill-current')} /> Favorites
           </Button>
         </div>
+        {!isLoading && total > 0 && (
+          <span className="text-sm text-muted sm:ml-auto">
+            {assets.length} of {total}
+          </span>
+        )}
       </div>
 
       {isLoading ? (
@@ -89,6 +120,14 @@ export default function AssetsPage() {
         <Card><EmptyState icon={Images} title="No assets found" description="Generate visuals from a brief or the Image Studio to fill your library." /></Card>
       )}
 
+      {hasNextPage && (
+        <div className="flex justify-center">
+          <Button variant="secondary" onClick={() => fetchNextPage()} loading={isFetchingNextPage}>
+            Load more
+          </Button>
+        </div>
+      )}
+
       {open && <AssetModal asset={open} onClose={() => setOpen(null)} />}
     </div>
   );
@@ -100,6 +139,7 @@ function AssetModal({ asset, onClose }) {
   const [active, setActive] = useState(asset);
   const [addingVersion, setAddingVersion] = useState(false);
   const [variants, setVariants] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Versions hang off the root asset, so opening a child (a v2 thumbnail in the
   // grid) has to resolve back to the root to see the whole chain. When the
@@ -123,6 +163,7 @@ function AssetModal({ asset, onClose }) {
   const remove = useMutation({
     mutationFn: (id) => del(`/assets/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['assets'] }); toast.success('Deleted'); onClose(); },
+    onError: (e) => toast.error(e.message),
   });
 
   const addVersion = useMutation({
@@ -148,10 +189,20 @@ function AssetModal({ asset, onClose }) {
     <Modal open onClose={onClose} title="Asset detail" size="xl"
       footer={
         <>
-          <Button variant="ghost" className="mr-auto text-red-500" onClick={() => remove.mutate(active.id)}><Trash2 className="h-4 w-4" /> Delete</Button>
+          <Button variant="ghost" className="mr-auto text-red-500" onClick={() => setConfirmDelete(true)}><Trash2 className="h-4 w-4" /> Delete</Button>
           <a href={active.url} target="_blank" rel="noreferrer" download><Button variant="secondary"><Download className="h-4 w-4" /> Open</Button></a>
         </>
       }>
+      <ConfirmDialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        onConfirm={() => remove.mutate(active.id)}
+        title={`Delete version ${active.version}?`}
+        message="This removes the asset from your library. Posts already using its URL keep working."
+        confirmLabel="Delete asset"
+        danger
+        loading={remove.isPending}
+      />
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="overflow-hidden rounded-xl border border-border bg-elevated">
           <img src={active.url} alt="" className="w-full object-contain max-h-[60vh]" />

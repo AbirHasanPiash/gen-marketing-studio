@@ -15,7 +15,7 @@ function ts() {
 
 function log(level, ...args) {
   const color = COLORS[level] || '';
-  // eslint-disable-next-line no-console
+   
   console.log(`${color}[${ts()}] ${level.toUpperCase()}${COLORS.reset}`, ...args);
 }
 

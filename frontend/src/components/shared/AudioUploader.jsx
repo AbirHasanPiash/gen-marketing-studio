@@ -21,7 +21,7 @@ const fileNameFromUrl = (url) => {
  * storing a link, because the render job has to be able to fetch the audio
  * server-side — most music sites serve a player page, not the file.
  */
-export function AudioUploader({ value, onChange, className }) {
+export function AudioUploader({ id, value, onChange, className }) {
   const inputRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState('');
@@ -111,14 +111,13 @@ export function AudioUploader({ value, onChange, className }) {
   if (value) {
     return (
       <>
-        <div className={cn('flex items-center gap-3 rounded-xl border border-border bg-elevated p-3', className)}>
+        <div id={id} className={cn('flex items-center gap-3 rounded-xl border border-border bg-elevated p-3', className)}>
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-500/10 text-brand-500">
             <Music className="h-4 w-4" />
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium text-fg">{name || fileNameFromUrl(value)}</p>
-            {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-            <audio src={value} controls className="mt-1.5 h-8 w-full" />
+            <audio src={value} controls preload="metadata" className="mt-1.5 h-8 w-full" />
           </div>
           <button
             type="button"
@@ -135,7 +134,7 @@ export function AudioUploader({ value, onChange, className }) {
 
   return (
     <>
-      <div className={cn('flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-border p-3', className)}>
+      <div id={id} className={cn('flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-border p-3', className)}>
         <input
           ref={inputRef}
           type="file"

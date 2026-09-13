@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Package, Plus, Pencil, Trash2, Search } from 'lucide-react';
+import { Package, Plus, Pencil, Trash2, Search, MoreHorizontal } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { ImageUploader } from '../components/shared/ImageUploader';
@@ -8,9 +8,18 @@ import {
   Card, CardBody, Button, Input, Textarea, Field, Modal, ConfirmDialog, Badge, EmptyState, Skeleton, Menu, MenuItem,
 } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useAuth } from '../store/auth';
 import { get, post, patch, del } from '../lib/api';
 import { money } from '../lib/utils';
+
+/** Blank means "no price", which is not the same number as free. */
+const toPrice = (value) => {
+  if (value === '' || value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
 
 const emptyProduct = { name: '', sku: '', description: '', price: '', currency: 'BDT', category: '', images: [], tags: [] };
 
@@ -21,16 +30,23 @@ export default function ProductsPage() {
   const [editing, setEditing] = useState(null);
   const [toDelete, setToDelete] = useState(null);
   const [search, setSearch] = useState('');
+  // One request when they stop typing, not one per keystroke.
+  const debouncedSearch = useDebouncedValue(search, 300);
+  useDocumentTitle('Products');
 
   const { data, isLoading } = useQuery({
-    queryKey: ['products', activeBrandId, search],
-    queryFn: () => get(`/products?brandId=${activeBrandId}&limit=100${search ? `&search=${search}` : ''}`),
+    queryKey: ['products', activeBrandId, debouncedSearch],
+    queryFn: () =>
+      get(`/products?${new URLSearchParams({ brandId: activeBrandId, limit: '100', ...(debouncedSearch ? { search: debouncedSearch } : {}) })}`),
     enabled: Boolean(activeBrandId),
+    placeholderData: (previous) => previous,
   });
 
   const save = useMutation({
     mutationFn: (p) => {
-      const body = { ...p, brandId: activeBrandId, price: p.price === '' ? null : Number(p.price) };
+      // `Number(null)` is 0 — sending that turned every price-less product into
+      // a free one the first time it was edited.
+      const body = { ...p, brandId: activeBrandId, price: toPrice(p.price) };
       return p.id ? patch(`/products/${p.id}`, body) : post('/products', body);
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['products'] }); setEditing(null); toast.success('Product saved'); },
@@ -53,7 +69,15 @@ export default function ProductsPage() {
         actions={<Button onClick={() => setEditing({ ...emptyProduct })} disabled={!activeBrandId}><Plus className="h-4 w-4" /> Add Product</Button>}
       />
 
-      <Input icon={Search} placeholder="Search products…" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-sm" />
+      <Input
+        icon={Search}
+        type="search"
+        aria-label="Search products"
+        placeholder="Search by name, SKU or category…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        className="max-w-sm"
+      />
 
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -76,7 +100,11 @@ export default function ProductsPage() {
                     <h3 className="font-medium text-fg truncate">{p.name}</h3>
                     {p.category && <Badge className="mt-1">{p.category}</Badge>}
                   </div>
-                  <Menu trigger={() => <button className="rounded-lg p-1 text-muted hover:bg-elevated hover:text-fg">⋯</button>}>
+                  <Menu
+                    label={`Actions for ${p.name}`}
+                    triggerClassName="rounded-lg p-1.5 text-muted transition hover:bg-elevated hover:text-fg"
+                    trigger={() => <MoreHorizontal className="h-4 w-4" />}
+                  >
                     <MenuItem icon={Pencil} onClick={() => setEditing(p)}>Edit</MenuItem>
                     {isOwner && <MenuItem icon={Trash2} danger onClick={() => setToDelete(p)}>Delete</MenuItem>}
                   </Menu>

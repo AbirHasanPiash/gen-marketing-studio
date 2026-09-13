@@ -13,7 +13,14 @@ export function errorHandler(err, req, res, next) {
   let message = err.message || 'Internal server error';
   let details = err.details;
 
-  if (err instanceof ZodError) {
+  if (err.code === 'ENOENT' || err.code === 'EACCES' || err.code === 'EISDIR') {
+    // Filesystem errors quote the absolute path they failed on. Nothing outside
+    // the server needs to know the deploy's directory layout.
+    logger.warn(`${req.method} ${req.originalUrl} →`, err.message);
+    status = 404;
+    message = 'File not found';
+    details = undefined;
+  } else if (err instanceof ZodError) {
     status = 400;
     message = 'Validation failed';
     details = err.issues.map((i) => ({ path: i.path.join('.'), message: i.message }));

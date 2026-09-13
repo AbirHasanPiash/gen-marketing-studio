@@ -4,8 +4,12 @@ import { prisma } from '../../lib/prisma.js';
 import { validate } from '../../middleware/validate.js';
 import { authenticate } from '../../middleware/auth.js';
 import { asyncHandler, ok } from '../../utils/http.js';
-import * as groq from '../../lib/groq.js';
+import { ApiError } from '../../utils/ApiError.js';
+import { ensureBrand } from '../../utils/scope.js';
+import * as llm from '../../lib/llm.js';
 import { upcomingMoments, getMoment, nextOccurrence } from '../../data/localMoments.js';
+import { optionalObjectId } from '../../utils/validators.js';
+import { generationLimiter } from '../../middleware/rateLimit.js';
 
 const router = Router();
 
@@ -46,6 +50,7 @@ function buildCopyPrompt(kind, input) {
 router.post(
   '/copy/stream',
   authenticate,
+  generationLimiter,
   validate({
     body: z.object({
       kind: z.enum(['caption', 'ad_copy']).default('caption'),
@@ -62,14 +67,14 @@ router.post(
 
     let full = '';
     try {
-      full = await groq.stream({
+      full = await llm.stream({
         system: COPY_SYSTEM,
         prompt: buildCopyPrompt(kind, input),
         temperature: 0.9,
         mockText:
           kind === 'ad_copy'
-            ? groq.mockAdCopy({ product: input.product, tone: input.tone, details: input.details })
-            : groq.mockCaption({ product: input.product, tone: input.tone, details: input.details }),
+            ? llm.mockAdCopy({ product: input.product, tone: input.tone, details: input.details })
+            : llm.mockCaption({ product: input.product, tone: input.tone, details: input.details }),
         onToken: (t) => res.write(`data: ${JSON.stringify({ token: t })}\n\n`),
       });
       await prisma.copyGeneration.create({
@@ -89,6 +94,7 @@ router.post(
 router.post(
   '/copy/variations',
   authenticate,
+  generationLimiter,
   validate({
     body: z.object({
       kind: z.enum(['caption', 'hashtags', 'ad_copy']).default('caption'),
@@ -98,7 +104,7 @@ router.post(
   }),
   asyncHandler(async (req, res) => {
     const { kind, input, count } = req.body;
-    const variations = await groq.variations({ kind, input, count });
+    const variations = await llm.variations({ kind, input, count });
     const record = await prisma.copyGeneration.create({
       data: { tenantId: req.tenantId, authorId: req.user.id, kind, input, variations },
     });
@@ -125,18 +131,17 @@ router.get(
 router.get(
   '/moments',
   authenticate,
-  asyncHandler(async (req, res) => {
-    const withinDays = Math.min(365, Number(req.query.withinDays) || 90);
-    return ok(res, upcomingMoments(new Date(), withinDays));
-  })
+  validate({ query: z.object({ withinDays: z.coerce.number().int().min(1).max(365).default(90) }) }),
+  asyncHandler(async (req, res) => ok(res, upcomingMoments(new Date(), req.query.withinDays)))
 );
 
 router.post(
   '/campaigns/suggest',
   authenticate,
+  generationLimiter,
   validate({
     body: z.object({
-      brandId: z.string().optional(),
+      brandId: optionalObjectId('brandId'),
       withinDays: z.coerce.number().int().min(7).max(365).default(90),
       limit: z.coerce.number().int().min(1).max(8).default(4),
     }),
@@ -151,9 +156,9 @@ router.post(
     const suggestions = await Promise.all(
       moments.map(async (m) => {
         let caption = m.sampleAngle;
-        if (groq.groqEnabled()) {
+        if (llm.llmEnabled()) {
           try {
-            caption = await groq.complete({
+            caption = await llm.complete({
               system: COPY_SYSTEM,
               prompt:
                 `Write one short social caption for a ${brand?.industry || 'retail'} brand` +
@@ -190,15 +195,16 @@ router.post(
   authenticate,
   validate({
     body: z.object({
-      momentKey: z.string(),
-      brandId: z.string().optional().nullable(),
+      momentKey: z.string().max(80),
+      brandId: optionalObjectId('brandId'),
       createDraftPost: z.boolean().default(true),
       draftCaption: z.string().optional(),
     }),
   }),
   asyncHandler(async (req, res) => {
     const moment = getMoment(req.body.momentKey);
-    if (!moment) return ok(res, { created: false });
+    if (!moment) throw ApiError.notFound('That campaign moment no longer exists');
+    if (req.body.brandId) await ensureBrand(req.tenantId, req.body.brandId);
 
     const campaign = await prisma.campaign.create({
       data: {

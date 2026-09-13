@@ -6,26 +6,30 @@ import { authenticate } from '../../middleware/auth.js';
 import { asyncHandler, ok, created, paginate, pageMeta } from '../../utils/http.js';
 import { ensureBrand, ensureOwned } from '../../utils/scope.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { objectId, optionalObjectId, queryObjectId, pageQuery, searchQuery } from '../../utils/validators.js';
+import { generationLimiter } from '../../middleware/rateLimit.js';
 import { generateFromPrompt, SIZE_PRESETS } from './asset.service.js';
 
 const router = Router();
 router.use(authenticate);
 
 const assetBody = z.object({
-  url: z.string().min(1),
-  thumbnailUrl: z.string().optional().nullable(),
+  url: z.string().min(1).max(2048),
+  thumbnailUrl: z.string().max(2048).optional().nullable(),
   type: z.enum(['IMAGE', 'VIDEO']).default('IMAGE'),
   source: z.enum(['UPLOAD', 'AI_GENERATED', 'COMPOSITED', 'VIDEO_RENDER']).default('AI_GENERATED'),
-  prompt: z.string().optional().nullable(),
-  brandId: z.string().optional().nullable(),
-  briefId: z.string().optional().nullable(),
-  cloudinaryId: z.string().optional().nullable(),
-  width: z.number().int().optional().nullable(),
-  height: z.number().int().optional().nullable(),
+  prompt: z.string().max(2000).optional().nullable(),
+  brandId: optionalObjectId('brandId'),
+  briefId: optionalObjectId('briefId'),
+  cloudinaryId: z.string().max(300).optional().nullable(),
+  width: z.coerce.number().int().optional().nullable(),
+  height: z.coerce.number().int().optional().nullable(),
   colors: z.any().optional().nullable(),
-  tags: z.array(z.string()).default([]),
-  parentAssetId: z.string().optional().nullable(),
+  tags: z.array(z.string().max(40)).max(20).default([]),
+  parentAssetId: optionalObjectId('parentAssetId'),
 });
+
+const idParam = { params: z.object({ id: objectId('asset id') }) };
 
 // --- Text-to-image generation (Feature 7) --------------
 
@@ -33,6 +37,7 @@ router.get('/sizes', (_req, res) => ok(res, SIZE_PRESETS));
 
 router.post(
   '/generate',
+  generationLimiter,
   validate({
     body: z.object({
       prompt: z.string().min(3).max(1000),
@@ -62,6 +67,7 @@ router.get(
 
 router.post(
   '/cache/:id/boost',
+  validate({ params: z.object({ id: objectId('cache id') }) }),
   asyncHandler(async (req, res) => {
     const entry = await ensureOwned('promptCache', req.tenantId, req.params.id);
     const updated = await prisma.promptCache.update({
@@ -76,8 +82,19 @@ router.post(
 
 router.get(
   '/',
+  validate({
+    query: pageQuery(24, 60).extend({
+      brandId: queryObjectId('brandId'),
+      briefId: queryObjectId('briefId'),
+      type: z.enum(['IMAGE', 'VIDEO']).optional(),
+      source: z.enum(['UPLOAD', 'AI_GENERATED', 'COMPOSITED', 'VIDEO_RENDER']).optional(),
+      tag: searchQuery(40),
+      favorite: z.enum(['true', 'false']).optional(),
+      search: searchQuery(),
+    }),
+  }),
   asyncHandler(async (req, res) => {
-    const { page, limit, skip, take } = paginate(req.query, { defaultLimit: 24 });
+    const { page, limit, skip, take } = paginate(req.query, { defaultLimit: 24, maxLimit: 60 });
     const { brandId, briefId, type, source, tag, favorite, search } = req.query;
     const where = {
       tenantId: req.tenantId,
@@ -85,10 +102,10 @@ router.get(
       ...(briefId ? { briefId } : {}),
       ...(type ? { type } : {}),
       ...(source ? { source } : {}),
-      ...(tag ? { tags: { has: String(tag) } } : {}),
+      ...(tag ? { tags: { has: tag } } : {}),
       ...(favorite === 'true' ? { isFavorite: true } : {}),
       ...(search
-        ? { OR: [{ prompt: { contains: String(search), mode: 'insensitive' } }, { tags: { has: String(search) } }] }
+        ? { OR: [{ prompt: { contains: search, mode: 'insensitive' } }, { tags: { has: search } }] }
         : {}),
     };
     const [items, total] = await Promise.all([
@@ -107,6 +124,7 @@ router.get(
 
 router.get(
   '/:id',
+  validate(idParam),
   asyncHandler(async (req, res) => {
     const asset = await prisma.asset.findFirst({
       where: { id: req.params.id, tenantId: req.tenantId },
@@ -143,7 +161,7 @@ router.post(
 
 router.post(
   '/:id/version',
-  validate({ body: assetBody.partial().extend({ url: z.string().min(1) }) }),
+  validate({ ...idParam, body: assetBody.partial().extend({ url: z.string().min(1).max(2048) }) }),
   asyncHandler(async (req, res) => {
     const parent = await ensureOwned('asset', req.tenantId, req.params.id);
     const root = parent.parentAssetId || parent.id;
@@ -174,10 +192,11 @@ router.post(
 router.patch(
   '/:id',
   validate({
+    ...idParam,
     body: z.object({
-      tags: z.array(z.string()).optional(),
+      tags: z.array(z.string().max(40)).max(20).optional(),
       isFavorite: z.boolean().optional(),
-      performance: z.number().optional(),
+      performance: z.coerce.number().optional(),
     }),
   }),
   asyncHandler(async (req, res) => {
@@ -189,6 +208,7 @@ router.patch(
 
 router.delete(
   '/:id',
+  validate(idParam),
   asyncHandler(async (req, res) => {
     await ensureOwned('asset', req.tenantId, req.params.id);
     await prisma.asset.delete({ where: { id: req.params.id } });

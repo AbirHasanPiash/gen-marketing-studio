@@ -10,10 +10,12 @@ import {
 import { PageHeader } from '../components/shared/PageHeader';
 import { StatCard } from '../components/shared/StatCard';
 import { Card, CardHeader, CardBody, Button, StatusBadge, Avatar, Skeleton, EmptyState } from '../components/ui';
+import { STATUS_META } from '../lib/utils';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { useAuth } from '../store/auth';
 import { get } from '../lib/api';
-import { fmtDateTime, timeAgo, compactNumber } from '../lib/utils';
+import { activityVerb, fmtDateTime, timeAgo, compactNumber } from '../lib/utils';
 
 const QUICK = [
   { to: '/copy', label: 'Write copy', icon: Sparkles },
@@ -22,9 +24,59 @@ const QUICK = [
   { to: '/campaigns', label: 'Campaign ideas', icon: Lightbulb },
 ];
 
+/** The lifecycle, in the order work actually moves through it. */
+const PIPELINE = ['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'SCHEDULED', 'PUBLISHED', 'FAILED'];
+const PIPELINE_BAR = {
+  DRAFT: 'bg-slate-400',
+  PENDING_REVIEW: 'bg-amber-500',
+  APPROVED: 'bg-emerald-500',
+  SCHEDULED: 'bg-blue-500',
+  PUBLISHED: 'bg-green-500',
+  FAILED: 'bg-red-500',
+};
+
+/**
+ * Where the workspace's content actually sits. Four headline numbers say how
+ * much exists; this says how much is stuck, and where.
+ */
+function PipelineCard({ statusCounts = {} }) {
+  const rows = PIPELINE.map((status) => ({ status, count: statusCounts[status] || 0 }));
+  const max = Math.max(1, ...rows.map((r) => r.count));
+  const total = rows.reduce((sum, r) => sum + r.count, 0);
+
+  return (
+    <Card>
+      <CardHeader title="Content pipeline" subtitle={total ? `${total} posts across every stage` : 'Nothing in flight yet'} />
+      <CardBody className="space-y-2.5">
+        {total === 0 ? (
+          <p className="py-4 text-center text-sm text-muted">Create a post to see it move through the pipeline.</p>
+        ) : (
+          rows.map(({ status, count }) => (
+            <Link
+              key={status}
+              to={status === 'PENDING_REVIEW' ? '/approvals' : '/calendar'}
+              className="flex items-center gap-3 rounded-lg px-1 py-1 transition hover:bg-elevated"
+            >
+              <span className="w-28 shrink-0 text-xs text-muted">{STATUS_META[status]?.label || status}</span>
+              <span className="h-2 flex-1 overflow-hidden rounded-full bg-border/60">
+                <span
+                  className={`block h-full rounded-full ${PIPELINE_BAR[status]}`}
+                  style={{ width: `${Math.round((count / max) * 100)}%` }}
+                />
+              </span>
+              <span className="w-7 shrink-0 text-right text-sm font-medium tabular-nums text-fg">{count}</span>
+            </Link>
+          ))
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const { activeBrandId, activeBrand } = useActiveBrand();
+  useDocumentTitle('Dashboard');
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard', activeBrandId],
@@ -68,7 +120,9 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      {/* `items-start` keeps each card at its natural height. Stretching them to
+          match the tallest column left a block of dead space under the chart. */}
+      <div className="grid items-start gap-6 lg:grid-cols-3">
         {/* Engagement trend */}
         <Card className="lg:col-span-2">
           <CardHeader
@@ -78,7 +132,7 @@ export default function DashboardPage() {
           />
           <CardBody>
             {overview?.timeseries?.length ? (
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={240}>
                 <AreaChart data={overview.timeseries} margin={{ left: 0, right: 8, top: 8 }}>
                   <defs>
                     <linearGradient id="eng" x1="0" y1="0" x2="0" y2="1">
@@ -95,7 +149,7 @@ export default function DashboardPage() {
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[220px] grid place-items-center text-sm text-muted">No analytics yet</div>
+              <div className="grid h-[240px] place-items-center text-sm text-muted">No analytics yet</div>
             )}
           </CardBody>
         </Card>
@@ -116,10 +170,12 @@ export default function DashboardPage() {
               ))}
             </CardBody>
           </Card>
+
+          <PipelineCard statusCounts={data?.statusCounts} />
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid items-start gap-6 lg:grid-cols-2">
         {/* Upcoming */}
         <Card>
           <CardHeader title="Upcoming schedule" action={<Link to="/calendar"><Button variant="ghost" size="sm">Calendar</Button></Link>} />
@@ -155,7 +211,7 @@ export default function DashboardPage() {
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-fg">
                       <span className="font-medium">{a.actor?.name}</span>{' '}
-                      <span className="text-muted">{a.action?.toLowerCase().replace('_', ' ')}</span>{' '}
+                      <span className="text-muted">{activityVerb(a.action)}</span>{' '}
                       <span className="font-medium">{a.post?.title || 'a post'}</span>
                     </p>
                     <p className="text-xs text-muted">{timeAgo(a.createdAt)}</p>

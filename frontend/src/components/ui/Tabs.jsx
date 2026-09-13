@@ -10,6 +10,8 @@ export function Tabs({ tabs, value, onChange, className }) {
         return (
           <button
             key={t.key}
+            type="button"
+            aria-pressed={active}
             onClick={() => onChange(t.key)}
             className={cn(
               'inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-medium transition',
@@ -44,6 +46,8 @@ export function UnderlineTabs({ tabs, value, onChange, className }) {
         return (
           <button
             key={t.key}
+            type="button"
+            aria-pressed={active}
             onClick={() => onChange(t.key)}
             className={cn(
               'relative whitespace-nowrap pb-3 pt-1 text-sm font-medium transition',

@@ -1,11 +1,15 @@
 import { createApp } from './app.js';
-import { env } from './config/env.js';
+import { env, assertProductionConfig } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { prisma } from './lib/prisma.js';
 import { startAgenda, stopAgenda } from './jobs/agenda.js';
 import { resetStuckRenders } from './modules/video/video.service.js';
 
+/** How long to let in-flight requests finish before exiting anyway. */
+const SHUTDOWN_GRACE_MS = 10_000;
+
 async function main() {
+  assertProductionConfig();
   const app = createApp();
 
   // Verify the database connection early with a clear message on failure.
@@ -32,20 +36,35 @@ async function main() {
 
   const server = app.listen(env.port, () => {
     logger.success(`API listening on ${env.apiBaseUrl} (port ${env.port})`);
-    // logger.info(
-    //   `Integrations → cloudinary:${env.cloudinary.enabled} openRouter:${env.openRouter.enabled} meta:${env.meta.enabled} image:${env.image.provider}`
-    // );
+    logger.info(
+      `Integrations → cloudinary:${env.cloudinary.enabled} openRouter:${env.openRouter.enabled} ` +
+        `meta:${env.meta.enabled} image:${env.image.provider}`
+    );
   });
 
+  let shuttingDown = false;
   const shutdown = async (signal) => {
+    // A second Ctrl-C should exit now, not queue another teardown.
+    if (shuttingDown) process.exit(1);
+    shuttingDown = true;
     logger.warn(`${signal} received — shutting down...`);
-    server.close();
+
+    // Stop accepting connections, then wait for the open ones. `server.close`
+    // is asynchronous: exiting without awaiting it cuts live responses off
+    // mid-flight, including an in-progress publish.
+    const closed = new Promise((resolve) => server.close(resolve));
+    const timeout = new Promise((resolve) => {
+      setTimeout(resolve, SHUTDOWN_GRACE_MS).unref();
+    });
+    await Promise.race([closed, timeout]);
+
     await stopAgenda().catch(() => {});
     await prisma.$disconnect().catch(() => {});
     process.exit(0);
   };
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('unhandledRejection', (err) => logger.error('Unhandled promise rejection:', err));
 }
 
 main().catch((err) => {

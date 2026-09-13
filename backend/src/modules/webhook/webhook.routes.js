@@ -2,12 +2,20 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { env } from '../../config/env.js';
 import { logger } from '../../lib/logger.js';
+import { publicLimiter } from '../../middleware/rateLimit.js';
 import { syncAllAnalytics } from '../analytics/analytics.service.js';
 
 const router = Router();
+router.use(publicLimiter);
 
+/**
+ * Meta signs every delivery with the app secret. Without an app configured
+ * there is no legitimate caller, so the endpoint refuses rather than trusting
+ * anyone who can reach it — this handler kicks off a Graph sweep across every
+ * tenant, which is not something an anonymous request should be able to do.
+ */
 function hasValidSignature(req) {
-  if (!env.meta.enabled) return true;
+  if (!env.meta.enabled) return false;
   const signature = req.get('x-hub-signature-256') || '';
   if (!signature.startsWith('sha256=') || !req.rawBody) return false;
   const expected = `sha256=${crypto.createHmac('sha256', env.meta.appSecret).update(req.rawBody).digest('hex')}`;
@@ -23,7 +31,7 @@ router.get('/meta', (req, res) => {
   const challenge = req.query['hub.challenge'];
   if (mode === 'subscribe' && token === env.meta.webhookVerifyToken) {
     logger.success('Meta webhook verified');
-    return res.status(200).send(challenge);
+    return res.status(200).send(String(challenge ?? ''));
   }
   return res.sendStatus(403);
 });

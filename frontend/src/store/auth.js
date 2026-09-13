@@ -38,6 +38,11 @@ export const useAuth = create((set, getState) => ({
     return user;
   },
 
+  /** Replace the cached user after a profile edit. */
+  setUser(user) {
+    set({ user });
+  },
+
   logout() {
     setToken(null);
     set({ user: null });

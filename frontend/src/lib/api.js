@@ -29,6 +29,13 @@ api.interceptors.response.use(
       }
     }
     const payload = error.response?.data?.error || { message: error.message || 'Request failed' };
+    // The server answers a rejected Zod schema with a `details` array; surfacing
+    // only the top-level "Validation failed" hides which field was wrong.
+    if (Array.isArray(payload.details) && payload.details.length) {
+      payload.message = `${payload.message}: ${payload.details
+        .map((d) => (d.path ? `${d.path} — ${d.message}` : d.message))
+        .join(', ')}`;
+    }
     return Promise.reject(payload);
   }
 );
@@ -42,5 +49,9 @@ export const del = (url, config) => api.delete(url, config).then((r) => r.data);
 
 /** Raw call returning the full envelope (for endpoints that use `meta`). */
 export const getEnvelope = (url, config) => api.get(url, config);
+
+/** Paginated list: `{ items, meta: { page, limit, total, totalPages } }`. */
+export const getPaged = (url, config) =>
+  api.get(url, config).then((r) => ({ items: r.data ?? [], meta: r.meta ?? null }));
 
 export const API_ORIGIN = import.meta.env.VITE_API_URL || '';

@@ -6,21 +6,25 @@ import { authenticate } from '../../middleware/auth.js';
 import { asyncHandler, ok } from '../../utils/http.js';
 import { ensureBrand } from '../../utils/scope.js';
 import { uniqueSlug } from '../../utils/slug.js';
+import { objectId, optionalObjectId } from '../../utils/validators.js';
 
 const router = Router();
 router.use(authenticate);
 
 const linkItem = z.object({
-  id: z.string().optional(),
-  label: z.string().min(1).max(80),
-  url: z.string().min(1),
+  id: optionalObjectId('link id'),
+  label: z.string().trim().min(1).max(80),
+  url: z.string().trim().min(1).max(2048),
   icon: z.string().max(40).optional().nullable(),
-  order: z.coerce.number().int().default(0),
+  order: z.coerce.number().int().min(0).max(999).default(0),
   isActive: z.boolean().default(true),
 });
 
+const brandParam = { params: z.object({ brandId: objectId('brandId') }) };
+
 router.get(
   '/:brandId',
+  validate(brandParam),
   asyncHandler(async (req, res) => {
     await ensureBrand(req.tenantId, req.params.brandId);
     const page = await prisma.linkInBioPage.findUnique({
@@ -34,6 +38,7 @@ router.get(
 router.put(
   '/:brandId',
   validate({
+    ...brandParam,
     body: z.object({
       title: z.string().min(1).max(120),
       bio: z.string().max(500).optional().nullable(),
@@ -41,7 +46,7 @@ router.put(
       slug: z.string().max(60).optional().nullable(),
       theme: z.object({ bg: z.string().optional(), accent: z.string().optional(), style: z.string().optional() }).optional().nullable(),
       published: z.boolean().optional(),
-      links: z.array(linkItem).default([]),
+      links: z.array(linkItem).max(30).default([]),
     }),
   }),
   asyncHandler(async (req, res) => {

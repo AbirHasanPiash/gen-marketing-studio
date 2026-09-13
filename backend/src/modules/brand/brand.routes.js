@@ -8,9 +8,12 @@ import { ensureBrand } from '../../utils/scope.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { uniqueSlug } from '../../utils/slug.js';
 import { extractPalette } from '../../lib/vibrant.js';
+import { objectId } from '../../utils/validators.js';
 
 const router = Router();
 router.use(authenticate);
+
+const idParam = { params: z.object({ id: objectId('brand id') }) };
 
 const brandBody = z.object({
   name: z.string().min(2).max(120),
@@ -42,6 +45,7 @@ router.get(
 
 router.get(
   '/:id',
+  validate(idParam),
   asyncHandler(async (req, res) => {
     const brand = await prisma.brandProfile.findFirst({
       where: { id: req.params.id, tenantId: req.tenantId },
@@ -70,7 +74,7 @@ router.post(
 router.patch(
   '/:id',
   requireRole('OWNER'),
-  validate({ body: brandBody.partial() }),
+  validate({ ...idParam, body: brandBody.partial() }),
   asyncHandler(async (req, res) => {
     await ensureBrand(req.tenantId, req.params.id);
     const brand = await prisma.brandProfile.update({ where: { id: req.params.id }, data: req.body });
@@ -81,6 +85,7 @@ router.patch(
 router.delete(
   '/:id',
   requireRole('OWNER'),
+  validate(idParam),
   asyncHandler(async (req, res) => {
     await ensureBrand(req.tenantId, req.params.id);
     await prisma.brandProfile.delete({ where: { id: req.params.id } });
@@ -92,6 +97,7 @@ router.delete(
 
 router.get(
   '/:id/kit',
+  validate(idParam),
   asyncHandler(async (req, res) => {
     await ensureBrand(req.tenantId, req.params.id);
     const kit = await prisma.brandKit.findUnique({ where: { brandId: req.params.id } });
@@ -102,7 +108,7 @@ router.get(
 router.post(
   '/:id/kit/extract',
   requireRole('OWNER'),
-  validate({ body: z.object({ logoUrl: z.string().min(1) }) }),
+  validate({ ...idParam, body: z.object({ logoUrl: z.string().min(1).max(2_000_000) }) }),
   asyncHandler(async (req, res) => {
     await ensureBrand(req.tenantId, req.params.id);
     const { palette, source } = await extractPalette(req.body.logoUrl);
@@ -114,6 +120,7 @@ router.put(
   '/:id/kit',
   requireRole('OWNER'),
   validate({
+    ...idParam,
     body: z.object({
       palette: z.array(z.object({ hex: z.string(), name: z.string().optional(), role: z.string().optional() })),
       primaryColor: z.string().optional().nullable(),

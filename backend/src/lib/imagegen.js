@@ -39,7 +39,7 @@ function mock(prompt, { width, height, count }) {
 async function stability(prompt, { width, height, count }) {
   const out = [];
   for (let i = 0; i < count; i += 1) {
-    // eslint-disable-next-line no-await-in-loop
+     
     const res = await fetch(
       'https://api.stability.ai/v2beta/stable-image/generate/core',
       {
@@ -109,7 +109,7 @@ async function gemini(prompt, { count }) {
   // Gemini doesn't currently support native batch generation for images via REST in a single call,
   // so we use a loop similar to the Stability AI implementation.
   for (let i = 0; i < count; i += 1) {
-    // eslint-disable-next-line no-await-in-loop
+     
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${env.image.geminiKey}`,
       {

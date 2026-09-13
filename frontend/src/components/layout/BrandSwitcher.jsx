@@ -11,8 +11,9 @@ export function BrandSwitcher() {
     <Menu
       align="left"
       width="w-64"
+      label="Switch brand"
       trigger={(open) => (
-        <button
+        <span
           className={cn(
             'flex items-center gap-2.5 rounded-xl border border-border bg-card px-2.5 py-1.5 transition hover:bg-elevated max-w-[220px]',
             open && 'ring-2 ring-brand-500/30'
@@ -29,7 +30,7 @@ export function BrandSwitcher() {
             </span>
           )}
           <ChevronsUpDown className="h-4 w-4 text-muted shrink-0" />
-        </button>
+        </span>
       )}
     >
       <p className="px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted/70">Your brands</p>

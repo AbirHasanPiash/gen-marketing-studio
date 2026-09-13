@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  FileText, Plus, Sparkles, Wand2, Save, Check, Palette, Trash2, Image as ImageIcon, Loader2, RefreshCw,
+  FileText, Plus, Sparkles, Wand2, Save, Palette, Trash2, Image as ImageIcon, Loader2, RefreshCw,
   Copy, Tag, X, CheckSquare, Square,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -10,6 +10,7 @@ import {
   Card, CardBody, Button, Input, Textarea, Field, Select, Modal, Badge, StatusBadge, EmptyState, Skeleton,
 } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { get, post, patch, del } from '../lib/api';
 import { fmtDate, cn } from '../lib/utils';
 
@@ -25,6 +26,7 @@ export default function BriefsPage() {
   const [selected, setSelected] = useState(new Set());
   const [bulkTag, setBulkTag] = useState('');
   const [tagFilter, setTagFilter] = useState('');
+  useDocumentTitle('Creative Briefs');
 
   const toggle = (id) =>
     setSelected((s) => {

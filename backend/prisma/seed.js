@@ -1,4 +1,4 @@
-/* eslint-disable no-await-in-loop */
+ 
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import QRCode from 'qrcode';
@@ -585,7 +585,7 @@ async function main() {
       createdAt: daysAgo(9), updatedAt: daysAgo(8),
     },
   });
-  const briefCha = await prisma.creativeBrief.create({
+  await prisma.creativeBrief.create({
     data: {
       tenantId: T, brandId: chaAdda.id, authorId: nusrat.id, productId: products[6].id,
       title: 'Malai cha hero for the menu board', productRef: 'Malai Cha (Regular)',

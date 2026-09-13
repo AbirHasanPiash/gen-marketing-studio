@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import { PageHeader } from '../components/shared/PageHeader';
 import { Card, CardBody, Button, Tabs, StatusBadge, PlatformDot, EmptyState, Skeleton } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { get, post } from '../lib/api';
 import { fmtDateTime, timeAgo, compactNumber } from '../lib/utils';
 
@@ -13,6 +14,7 @@ export default function PublishingPage() {
   const qc = useQueryClient();
   const { activeBrandId } = useActiveBrand();
   const [tab, setTab] = useState('jobs');
+  useDocumentTitle('Publishing');
 
   const { data: jobs, isLoading: loadingJobs } = useQuery({
     queryKey: ['publish-jobs'],

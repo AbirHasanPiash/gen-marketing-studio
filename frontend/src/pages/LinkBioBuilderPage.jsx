@@ -8,8 +8,9 @@ import { PageHeader } from '../components/shared/PageHeader';
 import { ImageUploader } from '../components/shared/ImageUploader';
 import { Card, CardHeader, CardBody, Button, Input, Textarea, Field, Switch, EmptyState } from '../components/ui';
 import { useActiveBrand } from '../hooks/useBrands';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { get, put } from '../lib/api';
-import { copyToClipboard, cn } from '../lib/utils';
+import { copyToClipboard } from '../lib/utils';
 
 const emptyState = { title: '', bio: '', avatarUrl: '', slug: '', published: false, theme: { bg: '#1D3557', accent: '#E9C46A' }, links: [] };
 
@@ -17,6 +18,7 @@ export default function LinkBioBuilderPage() {
   const qc = useQueryClient();
   const { activeBrandId, activeBrand } = useActiveBrand();
   const [state, setState] = useState(emptyState);
+  useDocumentTitle('Link-in-Bio');
 
   const { data, isFetching } = useQuery({
     queryKey: ['linkbio', activeBrandId],

@@ -38,11 +38,12 @@ export default {
       keyframes: {
         'fade-in': { from: { opacity: 0, transform: 'translateY(4px)' }, to: { opacity: 1, transform: 'none' } },
         'scale-in': { from: { opacity: 0, transform: 'scale(0.96)' }, to: { opacity: 1, transform: 'scale(1)' } },
-        shimmer: { '100%': { transform: 'translateX(100%)' } },
+        'slide-in-left': { from: { transform: 'translateX(-100%)' }, to: { transform: 'none' } },
       },
       animation: {
         'fade-in': 'fade-in 0.25s ease-out',
         'scale-in': 'scale-in 0.15s ease-out',
+        'slide-in-left': 'slide-in-left 0.2s ease-out',
       },
     },
   },

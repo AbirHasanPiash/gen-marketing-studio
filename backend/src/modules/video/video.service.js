@@ -149,7 +149,18 @@ async function fetchToFile(url, dest, { expectMedia = false } = {}) {
     fs.writeFileSync(dest, isBase64 ? Buffer.from(body, 'base64') : Buffer.from(decodeURIComponent(body), 'utf8'));
     return dest;
   }
-  const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  let res;
+  try {
+    res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+  } catch (err) {
+    // A bare AbortError reads as "The operation was aborted due to timeout",
+    // which tells the user nothing about which file the render was waiting on.
+    throw new Error(
+      err.name === 'TimeoutError' || err.name === 'AbortError'
+        ? `it did not respond within ${FETCH_TIMEOUT_MS / 1000}s`
+        : `it could not be downloaded (${err.message})`
+    );
+  }
   if (!res.ok) throw new Error(`the link returned HTTP ${res.status}`);
   const type = (res.headers.get('content-type') || '').split(';')[0].trim();
   // The usual mistake is pasting the page a track lives on rather than the file
@@ -248,7 +259,9 @@ async function renderSegment({ projectId, index, scene, w, h, strategy, caps, wo
   }
 
   const source = await sceneSource({ url: scene.image, caption: scene.caption, strategy, w, h });
-  const still = await fetchToFile(source, path.join(work, `img${index}.jpg`));
+  const still = await fetchToFile(source, path.join(work, `img${index}.jpg`)).catch((err) => {
+    throw new Error(`Scene ${index + 1}: the image could not be fetched — ${err.message}`);
+  });
 
   const caption = strategy === 'drawtext' ? scene.caption : null;
   const draw = caption
@@ -410,7 +423,7 @@ async function runRender(projectId) {
     // Phase 1 — scene segments. Unchanged scenes hit the cache and cost nothing.
     const segments = [];
     for (const [i, image] of images.entries()) {
-      // eslint-disable-next-line no-await-in-loop
+       
       segments.push(
         await renderSegment({
           projectId,

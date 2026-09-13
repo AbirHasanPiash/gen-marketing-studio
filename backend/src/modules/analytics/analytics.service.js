@@ -15,7 +15,6 @@ export async function syncPublication(publication) {
     platform: publication.platform,
     externalId: publication.externalId,
     accessToken: token,
-    igBusinessId: publication.socialAccount?.igBusinessId,
   });
   return prisma.analyticsSnapshot.create({
     data: {
@@ -34,26 +33,49 @@ export async function syncPublication(publication) {
   });
 }
 
+/** Graph calls run in small batches — serial is slow, unbounded gets throttled. */
+const SYNC_CONCURRENCY = 5;
+/** Don't re-snapshot a publication that was captured this recently. */
+const MIN_SYNC_INTERVAL_MS = 15 * 60_000;
+/** Upper bound per run, so one sweep can't run for hours on a large workspace. */
+const MAX_PER_RUN = 500;
+
 /**
  * Refresh insights for every successfully-published item. Pass a `tenantId` for
  * user-triggered syncs so one workspace can't kick off Graph calls for another;
  * the recurring job omits it deliberately to cover every tenant.
+ *
+ * Publications captured within `MIN_SYNC_INTERVAL_MS` are skipped: the sweep
+ * runs every 30 minutes and each pass writes a new snapshot row, so without a
+ * floor the collection grows forever while the dashboard only ever reads the
+ * newest row per publication.
  */
 export async function syncAllAnalytics(tenantId) {
+  const freshSince = new Date(Date.now() - MIN_SYNC_INTERVAL_MS);
   const pubs = await prisma.publication.findMany({
-    where: { status: 'SUCCESS', externalId: { not: null }, ...(tenantId ? { tenantId } : {}) },
-    include: { socialAccount: true },
+    where: {
+      status: 'SUCCESS',
+      externalId: { not: null },
+      ...(tenantId ? { tenantId } : {}),
+    },
+    include: { socialAccount: true, analytics: { orderBy: { capturedAt: 'desc' }, take: 1 } },
+    take: MAX_PER_RUN,
+    orderBy: { updatedAt: 'desc' },
   });
+
+  const stale = pubs.filter((p) => !p.analytics[0] || p.analytics[0].capturedAt < freshSince);
   let ok = 0;
-  for (const pub of pubs) {
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      await syncPublication(pub);
-      ok += 1;
-    } catch (err) {
-      logger.warn(`Analytics sync failed for publication ${pub.id}: ${err.message}`);
-    }
+
+  for (let i = 0; i < stale.length; i += SYNC_CONCURRENCY) {
+    const batch = stale.slice(i, i + SYNC_CONCURRENCY);
+     
+    const results = await Promise.allSettled(batch.map((pub) => syncPublication(pub)));
+    results.forEach((r, n) => {
+      if (r.status === 'fulfilled') ok += 1;
+      else logger.warn(`Analytics sync failed for publication ${batch[n].id}: ${r.reason?.message}`);
+    });
   }
-  if (pubs.length) logger.info(`Analytics sync: refreshed ${ok}/${pubs.length} publications`);
-  return { total: pubs.length, ok };
+
+  if (stale.length) logger.info(`Analytics sync: refreshed ${ok}/${stale.length} publications`);
+  return { total: stale.length, ok, skipped: pubs.length - stale.length };
 }
